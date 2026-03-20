@@ -1,0 +1,48 @@
+# Document requirements per deferment type.
+# Edit here to update required documents — no code changes needed.
+
+exchange:
+  label: "Exchange Programme"
+  docs:
+    - key: acceptance_letter
+      label: "Acceptance letter / signed contract / registration portal screenshot — must clearly show you have ACCEPTED the offer (not just received an offer). Must include study period start and end dates. If dates are not in one document, submit additional documents. Note: apply for deferment as soon as offer is accepted and before leaving the country; clear IPPT in that cycle before departure."
+    - key: visa
+      label: "Visa or Visa Application (submit whichever is available)"
+
+internship_credit:
+  label: "Internship (Credit-Bearing)"
+  docs:
+    - key: contract
+      label: "Signed internship contract (must be signed by both parties, with clear start and end dates)"
+    - key: credit_bearing_proof
+      label: "Document confirming this internship is credit-bearing (e.g. school letter or module listing with course code)"
+
+internship_non_credit:
+  label: "Internship (Non-Credit-Bearing)"
+  docs:
+    - key: contract
+      label: "Signed internship contract (must be signed by both parties, with clear start and end dates). Note: approach your employer first to check if they can release you for 1 week of ICT — if so, a deferment may not be needed."
+    - key: employer_excuse_letter
+      label: "Letter from employer requesting that you be excused from ICT"
+
+off_cycle:
+  label: "Off-Cycle School"
+  docs:
+    - key: enrolment_letter
+      label: "Proof of enrolment in school (e.g. enrolment letter or student pass)"
+    - key: academic_calendar
+      label: "Academic calendar showing the off-cycle semester dates"
+
+overseas_vacation:
+  label: "Overseas Vacation (Pre-Booked)"
+  docs:
+    - key: booking_receipts
+      label: "Booking receipts (flights, accommodation, etc.) — booking dates must clearly show the booking was made before your call-up notice was issued"
+
+other:
+  label: "Other"
+  docs:
+    - key: supporting_doc
+      label: "Supporting document (any relevant document)"
+    - key: explanation_letter
+      label: "Explanation letter describing your deferment reason"

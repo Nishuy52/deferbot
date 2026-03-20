@@ -1,0 +1,35 @@
+"""Supabase Storage for deferment documents, downloaded from Telegram."""
+import os
+import requests
+from bot.db import _client
+
+BUCKET = "documents"
+_TG = lambda: f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}"
+
+
+def save_media(application_id: int, doc_type: str, file_id: str, mimetype: str) -> str:
+    """Download file from Telegram and upload to Supabase Storage. Returns storage path."""
+    # Get Telegram download URL
+    resp = requests.get(f"{_TG()}/getFile", params={"file_id": file_id}, timeout=10)
+    resp.raise_for_status()
+    tg_path = resp.json()["result"]["file_path"]
+
+    # Download the file
+    token = os.environ["TELEGRAM_TOKEN"]
+    dl = requests.get(f"https://api.telegram.org/file/bot{token}/{tg_path}", timeout=30)
+    dl.raise_for_status()
+
+    # Upload to Supabase Storage
+    ext = _ext(mimetype)
+    path = f"{application_id}/{doc_type}_{file_id[:8]}.{ext}"
+    _client().storage.from_(BUCKET).upload(
+        path=path,
+        file=dl.content,
+        file_options={"content-type": mimetype, "upsert": "true"},
+    )
+    return path
+
+
+def _ext(mimetype: str) -> str:
+    return {"image/jpeg": "jpg", "image/png": "png",
+            "image/webp": "webp", "application/pdf": "pdf"}.get(mimetype, "bin")

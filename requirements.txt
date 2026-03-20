@@ -1,0 +1,5 @@
+flask==3.0.3
+supabase==2.4.3
+requests==2.31.0
+pyyaml==6.0.1
+Pillow==10.4.0

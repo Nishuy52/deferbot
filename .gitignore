@@ -1,0 +1,9 @@
+.aws-sam/
+__pycache__/
+*.pyc
+.env
+venv/
+.venv/
+
+.vercel
+.claude
