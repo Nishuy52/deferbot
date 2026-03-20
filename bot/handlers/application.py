@@ -770,6 +770,15 @@ def _build_summary(app: dict) -> str:
     return "\n".join(lines)
 
 
+def _fmt_past_apps(past: list[dict]) -> str:
+    labels = {"approved": "✅ Approved", "rejected": "❌ Rejected"}
+    entries = ", ".join(
+        f"\\#{p['id']} \\({labels.get(p['status'], p['status'])}\\)"
+        for p in past
+    )
+    return f"Past applications: {entries}"
+
+
 def _fmt_status(app: dict) -> str:
     labels = {
         "draft": "In progress \\(not submitted\\)",
