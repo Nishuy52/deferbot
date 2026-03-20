@@ -779,7 +779,7 @@ def _fmt_past_apps(past: list[dict]) -> str:
     return f"Past applications: {entries}"
 
 
-def _fmt_status(app: dict) -> str:
+def _fmt_status(app: dict, past: list[dict] | None = None) -> str:
     labels = {
         "draft": "In progress \\(not submitted\\)",
         "pending_ippt": "⚠️ Awaiting IPPT completion",
@@ -801,4 +801,7 @@ def _fmt_status(app: dict) -> str:
         lines.append(f"Note: {esc(app['revision_note'])}")
     if app.get("co_rejection_reason"):
         lines.append(f"CO rejection reason: {esc(app['co_rejection_reason'])}")
+    if past:
+        lines.append("")
+        lines.append(_fmt_past_apps(past))
     return "\n".join(lines)
