@@ -143,7 +143,11 @@ def _no_app(chat_id: str, user: dict, text: str) -> None:
         db.create_application(chat_id)
         send(chat_id, f"*Start a deferment application*\n\nSelect your deferment type:\n\n{format_type_menu(esc)}\n\nReply with a number\\.")
     elif t == "/status":
-        send(chat_id, "You have no active application\\.")
+        past = db.get_past_applications(chat_id)
+        msg = "You have no active application\\."
+        if past:
+            msg += "\n\n" + _fmt_past_apps(past)
+        send(chat_id, msg)
     elif t == "/help":
         send(chat_id, HELP_USER)
     else:
