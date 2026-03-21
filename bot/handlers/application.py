@@ -175,7 +175,8 @@ def _wizard(chat_id: str, user: dict, app: dict, text: str, media: dict | None) 
         return
 
     if t == "/status":
-        send(chat_id, _fmt_status(app))
+        past = db.get_past_applications(chat_id)
+        send(chat_id, _fmt_status(app, past))
         return
 
     if t == "/help":
