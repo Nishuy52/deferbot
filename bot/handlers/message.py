@@ -130,8 +130,6 @@ def _handle(chat_id: str, text: str, media: dict | None) -> None:
         tg.send(chat_id,
              "👋 *Welcome to the NS Deferment Bot\\!*\n\n"
              "Let's get you registered\\.\n"
-             "WARNING, this is a test server and your data will be wiped by SUNDAY\\.\n"
-             "*DO NOT USE THIS FOR REAL APPLICATION YET UNTIL FURTHER NOTICE*\\.\n"
              "What is your *rank and full name*?\n"
              "_Example: 3SG Tan Wei Ming_")
         return
