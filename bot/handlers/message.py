@@ -96,10 +96,10 @@ def _run_simulated(admin_id: str, target_id: str, text: str, media: dict | None)
 def on_update(body: dict) -> None:
     from bot.telegram import parse_updates
     for msg in parse_updates(body):
-        _handle(msg["chat_id"], msg["text"], msg["media"])
+        _handle(msg["chat_id"], msg["text"], msg["media"], msg.get("reply_media"))
 
 
-def _handle(chat_id: str, text: str, media: dict | None) -> None:
+def _handle(chat_id: str, text: str, media: dict | None, reply_media: dict | None = None) -> None:
     # Check if admin is in simulatemode — reroute their messages
     sim = admin.get_simulate_mode(chat_id)
     if sim:
@@ -209,4 +209,4 @@ def _handle(chat_id: str, text: str, media: dict | None) -> None:
         return
 
     # ── Application wizard / user commands ────────────────────────────────
-    application.handle(chat_id, user, text, media)
+    application.handle(chat_id, user, text, media, reply_media)
