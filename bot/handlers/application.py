@@ -127,12 +127,13 @@ _USER_ACTIVE_CMDS = {"/withdraw", "/status", "/edit_docs", "/edit_ippt",
                      "/applied", "/co_approved", "/co_rejected", "/resubmit"}
 
 
-def handle(chat_id: str, user: dict, text: str, media: dict | None) -> None:
+def handle(chat_id: str, user: dict, text: str, media: dict | None,
+           reply_media: dict | None = None) -> None:
     app = db.get_active_application(chat_id)
     if not app:
         _no_app(chat_id, user, text)
         return
-    _wizard(chat_id, user, app, text, media)
+    _wizard(chat_id, user, app, text, media, reply_media)
 
 
 def _no_app(chat_id: str, user: dict, text: str) -> None:
@@ -155,7 +156,8 @@ def _no_app(chat_id: str, user: dict, text: str) -> None:
         send(chat_id, get_menu(role, chat_id))
 
 
-def _wizard(chat_id: str, user: dict, app: dict, text: str, media: dict | None) -> None:
+def _wizard(chat_id: str, user: dict, app: dict, text: str, media: dict | None,
+            reply_media: dict | None = None) -> None:
     t = text.lower().strip()
 
     # Global commands available during any step
@@ -212,13 +214,13 @@ def _wizard(chat_id: str, user: dict, app: dict, text: str, media: dict | None) 
     elif step == "ippt_check":
         _step_ippt(chat_id, app, text)
     elif step == "doc_collect":
-        _step_docs(chat_id, app, text, media)
+        _step_docs(chat_id, app, text, media, reply_media)
     elif step == "confirm":
         _step_confirm(chat_id, user, app, text)
     elif step == "edit_ippt":
         _step_edit_ippt(chat_id, user, app, text)
     elif step == "edit_docs":
-        _step_edit_docs(chat_id, app, text, media)
+        _step_edit_docs(chat_id, app, text, media, reply_media)
     elif step == "co_rejection_reason":
         _step_co_rejection_reason(chat_id, user, app, text)
     elif step == "submitted":
@@ -274,13 +276,52 @@ def _step_ippt(chat_id: str, app: dict, text: str) -> None:
          f"{checklist}\n\n"
          f"Send each file as a photo or document with just the number as the caption\\.\n\n"
          f"Example: To upload document 1, attach the file and type *1* in the caption field\\.\n\n"
+         f"Or send the file first, then reply to it with the number\\.\n"
          f"You can send multiple files per category\\.")
 
 
-def _step_docs(chat_id: str, app: dict, text: str, media: dict | None) -> None:
+def _save_tagged_file(chat_id: str, app: dict, media_dict: dict, doc: dict) -> bool:
+    """Validate, save, and log a tagged document. Returns True on success."""
+    if media_dict.get("file_size") and media_dict["file_size"] > MAX_FILE_SIZE:
+        send(chat_id, "⚠️ File too large\\. Maximum size is 10 MB\\. Please compress and resend\\.")
+        return False
+    try:
+        path = storage.save_media(app["id"], doc["key"], media_dict["file_id"], media_dict["mimetype"])
+    except FileTooLargeError:
+        send(chat_id, "⚠️ File too large\\. Maximum size is 10 MB\\. Please compress and resend\\.")
+        return False
+    db.add_document(app["id"], doc["key"], path,
+                    file_id=media_dict["file_id"], mimetype=media_dict["mimetype"])
+    db.log_action(app["id"], chat_id, "doc_uploaded", doc["key"])
+    return True
+
+
+def _step_docs(chat_id: str, app: dict, text: str, media: dict | None,
+               reply_media: dict | None = None) -> None:
     required = get_required_docs(app["type"])
     uploaded_types = db.get_uploaded_doc_types(app["id"])
     counts = db.get_doc_counts(app["id"])
+
+    # Reply-based tagging: user replies to a file message with a category number
+    if not media and reply_media and text.strip().isdigit():
+        doc = doc_key_from_index(app["type"], int(text.strip()))
+        if not doc:
+            send(chat_id, f"Invalid number\\. Please use 1–{len(required)}\\.")
+            return
+        if not _save_tagged_file(chat_id, app, reply_media, doc):
+            return
+        counts = db.get_doc_counts(app["id"])
+        uploaded_types = db.get_uploaded_doc_types(app["id"])
+        remaining = get_missing_docs(app["type"], uploaded_types)
+        checklist = _format_checklist(required, counts, app["type"])
+        if not remaining:
+            send(chat_id,
+                 f"✅ Received: *{esc(doc['label'])}*\n\n{checklist}\n\n"
+                 f"All categories have at least one file\\.\n"
+                 f"Send more files or type /done to review and submit\\.")
+        else:
+            send(chat_id, f"✅ Received: *{esc(doc['label'])}*\n\n{checklist}\n\nSend the next document\\.")
+        return
 
     if not media:
         # Text-only message during doc collection
@@ -328,20 +369,8 @@ def _step_docs(chat_id: str, app: dict, text: str, media: dict | None) -> None:
         send(chat_id, f"Invalid number\\. Please use 1–{len(required)}\\.")
         return
 
-    # Validate file size
-    if media.get("file_size") and media["file_size"] > MAX_FILE_SIZE:
-        send(chat_id, "⚠️ File too large\\. Maximum size is 10 MB\\. Please compress and resend\\.")
+    if not _save_tagged_file(chat_id, app, media, doc):
         return
-
-    # Save the file
-    try:
-        path = storage.save_media(app["id"], doc["key"], media["file_id"], media["mimetype"])
-    except FileTooLargeError:
-        send(chat_id, "⚠️ File too large\\. Maximum size is 10 MB\\. Please compress and resend\\.")
-        return
-    db.add_document(app["id"], doc["key"], path,
-                    file_id=media["file_id"], mimetype=media["mimetype"])
-    db.log_action(app["id"], chat_id, "doc_uploaded", doc["key"])
 
     # Refresh counts
     counts = db.get_doc_counts(app["id"])
@@ -452,11 +481,13 @@ def _show_edit_docs(chat_id: str, app: dict) -> None:
     send(chat_id,
          f"*Edit documents:*\n\n{checklist}\n\n"
          f"To add a file, attach it with just the number as the caption \\(e\\.g\\. *1*\\)\\.\n"
+         f"Or reply to a sent file with the number\\.\n"
          f"/clear <number\\> — remove all files for a category\n"
          f"/done — finish editing")
 
 
-def _step_edit_docs(chat_id: str, app: dict, text: str, media: dict | None) -> None:
+def _step_edit_docs(chat_id: str, app: dict, text: str, media: dict | None,
+                    reply_media: dict | None = None) -> None:
     t = text.lower().strip()
     required = get_required_docs(app["type"])
     counts = db.get_doc_counts(app["id"])
@@ -499,28 +530,33 @@ def _step_edit_docs(chat_id: str, app: dict, text: str, media: dict | None) -> N
         send(chat_id, f"🗑️ Cleared: *{esc(doc['label'])}*\n\n{checklist}")
         return
 
+    # Reply-based tagging: user replies to a file message with a category number
+    if not media and reply_media and t.isdigit():
+        doc = doc_key_from_index(app["type"], int(t))
+        if not doc:
+            send(chat_id, f"Invalid number\\. Please use 1–{len(required)}\\.")
+            return
+        if not _save_tagged_file(chat_id, app, reply_media, doc):
+            return
+        counts = db.get_doc_counts(app["id"])
+        checklist = _format_checklist(required, counts, app["type"])
+        send(chat_id, f"✅ Received: *{esc(doc['label'])}*\n\n{checklist}")
+        return
+
     if media:
         caption = text.strip()
         if not caption or not caption.isdigit():
             checklist = _format_checklist(required, counts, app["type"])
-            send(chat_id, f"Please add just the document number as the caption \\(e\\.g\\. *1*\\)\\.\n\n{checklist}")
+            send(chat_id,
+                 f"Please add just the document number as the caption \\(e\\.g\\. *1*\\)\\.\n\n{checklist}"
+                 f"Or reply to a sent file with the number\\.\n\n{checklist}")
             return
         doc = doc_key_from_index(app["type"], int(caption))
         if not doc:
             send(chat_id, f"Invalid number\\. Please use 1–{len(required)}\\.")
             return
-        # Validate file size
-        if media.get("file_size") and media["file_size"] > MAX_FILE_SIZE:
-            send(chat_id, "⚠️ File too large\\. Maximum size is 10 MB\\. Please compress and resend\\.")
+        if not _save_tagged_file(chat_id, app, media, doc):
             return
-        try:
-            path = storage.save_media(app["id"], doc["key"], media["file_id"], media["mimetype"])
-        except FileTooLargeError:
-            send(chat_id, "⚠️ File too large\\. Maximum size is 10 MB\\. Please compress and resend\\.")
-            return
-        db.add_document(app["id"], doc["key"], path,
-                        file_id=media["file_id"], mimetype=media["mimetype"])
-        db.log_action(app["id"], chat_id, "doc_uploaded", doc["key"])
         counts = db.get_doc_counts(app["id"])
         checklist = _format_checklist(required, counts, app["type"])
         send(chat_id, f"✅ Received: *{esc(doc['label'])}*\n\n{checklist}")
