@@ -1,5 +1,6 @@
 """Application wizard state machine with IPPT gating, doc tagging, edits, and OneNS/CO flow."""
 from bot import db, storage
+from bot.storage import MAX_FILE_SIZE, FileTooLargeError
 from bot.config.docs import (
     TYPE_KEYS, get_type_label, get_required_docs,
     get_missing_docs, format_type_menu, type_key_from_index,
@@ -327,8 +328,17 @@ def _step_docs(chat_id: str, app: dict, text: str, media: dict | None) -> None:
         send(chat_id, f"Invalid number\\. Please use 1–{len(required)}\\.")
         return
 
+    # Validate file size
+    if media.get("file_size") and media["file_size"] > MAX_FILE_SIZE:
+        send(chat_id, "⚠️ File too large\\. Maximum size is 10 MB\\. Please compress and resend\\.")
+        return
+
     # Save the file
-    path = storage.save_media(app["id"], doc["key"], media["file_id"], media["mimetype"])
+    try:
+        path = storage.save_media(app["id"], doc["key"], media["file_id"], media["mimetype"])
+    except FileTooLargeError:
+        send(chat_id, "⚠️ File too large\\. Maximum size is 10 MB\\. Please compress and resend\\.")
+        return
     db.add_document(app["id"], doc["key"], path,
                     file_id=media["file_id"], mimetype=media["mimetype"])
     db.log_action(app["id"], chat_id, "doc_uploaded", doc["key"])
@@ -499,7 +509,15 @@ def _step_edit_docs(chat_id: str, app: dict, text: str, media: dict | None) -> N
         if not doc:
             send(chat_id, f"Invalid number\\. Please use 1–{len(required)}\\.")
             return
-        path = storage.save_media(app["id"], doc["key"], media["file_id"], media["mimetype"])
+        # Validate file size
+        if media.get("file_size") and media["file_size"] > MAX_FILE_SIZE:
+            send(chat_id, "⚠️ File too large\\. Maximum size is 10 MB\\. Please compress and resend\\.")
+            return
+        try:
+            path = storage.save_media(app["id"], doc["key"], media["file_id"], media["mimetype"])
+        except FileTooLargeError:
+            send(chat_id, "⚠️ File too large\\. Maximum size is 10 MB\\. Please compress and resend\\.")
+            return
         db.add_document(app["id"], doc["key"], path,
                         file_id=media["file_id"], mimetype=media["mimetype"])
         db.log_action(app["id"], chat_id, "doc_uploaded", doc["key"])

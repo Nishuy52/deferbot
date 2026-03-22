@@ -115,9 +115,11 @@ def parse_updates(body: dict) -> list[dict]:
 
     if "photo" in msg:
         photo = msg["photo"][-1]  # highest resolution
-        media = {"file_id": photo["file_id"], "mimetype": "image/jpeg"}
+        media = {"file_id": photo["file_id"], "mimetype": "image/jpeg",
+                 "file_size": photo.get("file_size")}
     elif "document" in msg:
         doc = msg["document"]
-        media = {"file_id": doc["file_id"], "mimetype": doc.get("mime_type", "application/pdf")}
+        media = {"file_id": doc["file_id"], "mimetype": doc.get("mime_type", "application/pdf"),
+                 "file_size": doc.get("file_size")}
 
     return [{"chat_id": chat_id, "text": text.strip(), "media": media}]
