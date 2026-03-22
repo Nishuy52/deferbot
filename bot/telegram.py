@@ -122,4 +122,19 @@ def parse_updates(body: dict) -> list[dict]:
         media = {"file_id": doc["file_id"], "mimetype": doc.get("mime_type", "application/pdf"),
                  "file_size": doc.get("file_size")}
 
-    return [{"chat_id": chat_id, "text": text.strip(), "media": media}]
+    # Extract media from replied-to message (for reply-based doc tagging)
+    reply_media = None
+    reply_msg = msg.get("reply_to_message")
+    if reply_msg:
+        if "photo" in reply_msg:
+            rp = reply_msg["photo"][-1]
+            reply_media = {"file_id": rp["file_id"], "mimetype": "image/jpeg",
+                           "file_size": rp.get("file_size")}
+        elif "document" in reply_msg:
+            rd = reply_msg["document"]
+            reply_media = {"file_id": rd["file_id"],
+                           "mimetype": rd.get("mime_type", "application/pdf"),
+                           "file_size": rd.get("file_size")}
+
+    return [{"chat_id": chat_id, "text": text.strip(), "media": media,
+             "reply_media": reply_media}]
