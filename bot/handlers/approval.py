@@ -162,7 +162,7 @@ def _list_active(chat_id: str, user: dict, args: list[str]) -> None:
     if role == "pc":
         apps = db.get_active_for_pc(user.get("platoon") or "")
         if not apps:
-            send(chat_id, "No active applications\\.")
+            send(chat_id, "No active applications\\.\nUse /pending to check for applications awaiting review\\.")
             return
         platoon = user.get("platoon", "?")
         header = f"*Active Applications \\({platoon}\\):*\n\n"
@@ -170,7 +170,7 @@ def _list_active(chat_id: str, user: dict, args: list[str]) -> None:
     elif role in ("oc", "admin"):
         apps = db.get_active_for_oc()
         if not apps:
-            send(chat_id, "No active applications\\.")
+            send(chat_id, "No active applications\\.\nUse /pending to check for applications awaiting review\\.")
             return
         send(chat_id, "*Active Applications:*\n\n" + _format_app_list_by_platoon(apps, user))
 
@@ -201,7 +201,7 @@ def _pending(chat_id: str, user: dict, args: list[str]) -> None:
         apps = db.get_pending_for_pc(user.get("platoon") or "")
 
     if not apps:
-        send(chat_id, "No pending applications\\.")
+        send(chat_id, "No pending applications\\.\nUse /list\\_active to view all active applications\\.")
         return
 
     send(
@@ -305,6 +305,9 @@ def _view(chat_id: str, user: dict, args: list[str]) -> None:
     can_edit = _can_edit_decision(user, app)
     if can_edit:
         lines.append(f"\n/edit\\_decision — edit your previous decision")
+
+    if not can_review and not can_edit:
+        lines.append(f"\n_No actions available for this application\\._")
 
     send(chat_id, "\n".join(lines))
 
@@ -426,7 +429,7 @@ def _handle_review_step(chat_id: str, user: dict, cmd: str, args: list[str], ste
     text = cmd  # The full text/command
     if text.lower().strip() == "/cancel":
         _clear_review_context(chat_id)
-        send(chat_id, "Review action cancelled\\.")
+        send(chat_id, "Review action cancelled\\.\nUse /pending to review other applications\\.")
         return
 
     app_id = user.get("viewing_app_id")
@@ -475,7 +478,7 @@ def _execute_approve(chat_id: str, user: dict, app: dict, text: str) -> None:
                    f"📋 *Application \\#{app['id']} forwarded by PC*\n"
                    f"{esc(app.get('applicant_name') or '?')} \\({esc(app.get('applicant_platoon') or '?')}\\)\n"
                    f"Use /view {app['id']} to review\\.")
-        send(chat_id, f"✅ Application \\#{app['id']} forwarded to OC\\.")
+        send(chat_id, f"✅ Application \\#{app['id']} forwarded to OC\\.\nUse /pending to review next application\\.")
 
     elif role in ("oc", "admin"):
         if is_hq and app["status"] == "pending_pc":
@@ -498,7 +501,7 @@ def _execute_approve(chat_id: str, user: dict, app: dict, text: str) -> None:
                     + (f"\nComment: {esc(comment)}" if comment else ""))
 
         hq_note = " \\(HQ direct\\)" if is_hq else ""
-        send(chat_id, f"✅ Application \\#{app['id']} approved{hq_note}\\. Applicant notified to apply on OneNS\\.")
+        send(chat_id, f"✅ Application \\#{app['id']} approved{hq_note}\\. Applicant notified to apply on OneNS\\.\nUse /pending to review next application\\.")
 
 
 def _execute_reject(chat_id: str, user: dict, app: dict, text: str) -> None:
@@ -527,7 +530,7 @@ def _execute_reject(chat_id: str, user: dict, app: dict, text: str) -> None:
                     f"❌ *Application \\#{app['id']} rejected by OC*\n"
                     f"{esc(app.get('applicant_name') or '?')}\nReason: {esc(reason)}")
 
-    send(chat_id, f"Application \\#{app['id']} rejected\\. Applicant notified\\.")
+    send(chat_id, f"Application \\#{app['id']} rejected\\. Applicant notified\\.\nUse /pending to review next application\\.")
 
 
 def _execute_revise(chat_id: str, user: dict, app: dict, text: str) -> None:
@@ -562,7 +565,7 @@ def _execute_revise(chat_id: str, user: dict, app: dict, text: str) -> None:
                     f"⚠️ *Application \\#{app['id']} sent back for revision by OC*\n"
                     f"{esc(app.get('applicant_name') or '?')}\nNote: {esc(note)}")
 
-    send(chat_id, f"Application \\#{app['id']} sent back for revision\\. Applicant notified\\.")
+    send(chat_id, f"Application \\#{app['id']} sent back for revision\\. Applicant notified\\.\nUse /pending to review next application\\.")
 
 
 # ── Decision Editing ──────────────────────────────────────────────────────

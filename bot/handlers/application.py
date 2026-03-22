@@ -174,7 +174,7 @@ def _wizard(chat_id: str, user: dict, app: dict, text: str, media: dict | None,
             f"ℹ️ *Application \\#{app['id']} withdrawn*\n"
             f"{esc(user['name'])} \\({esc(user.get('platoon') or '?')}\\)"
         )
-        send(chat_id, "Your application has been withdrawn\\.")
+        send(chat_id, "Your application has been withdrawn\\.\nUse /apply to start a new application\\.")
         return
 
     if t == "/status":
@@ -320,7 +320,7 @@ def _step_docs(chat_id: str, app: dict, text: str, media: dict | None,
                  f"All categories have at least one file\\.\n"
                  f"Send more files or type /done to review and submit\\.")
         else:
-            send(chat_id, f"✅ Received: *{esc(doc['label'])}*\n\n{checklist}\n\nSend the next document\\.")
+            send(chat_id, f"✅ Received: *{esc(doc['label'])}*\n\n{checklist}\n\nSend the next document with its number as the caption, or reply to it with the number\\.")
         return
 
     if not media:
@@ -342,7 +342,7 @@ def _step_docs(chat_id: str, app: dict, text: str, media: dict | None,
 
         if t == "/done" and missing:
             labels = ", ".join(esc(d["label"]) for d in missing)
-            send(chat_id, f"⚠️ Still missing: {labels}")
+            send(chat_id, f"⚠️ Still missing: {labels}\n\nSend each file with its number as the caption, or reply to it with the number\\.")
             return
 
         checklist = _format_checklist(required, counts, app["type"])
@@ -353,7 +353,8 @@ def _step_docs(chat_id: str, app: dict, text: str, media: dict | None,
         else:
             send(chat_id,
                  f"*Document checklist:*\n\n{checklist}\n\n"
-                 f"Send each file with just the number as the caption \\(e\\.g\\. *1*\\)\\.")
+                 f"Send each file with just the number as the caption \\(e\\.g\\. *1*\\)\\.\n"
+                 f"Or send the file first, then reply to it with the number\\.")
         return
 
     # Media received — determine category from caption
@@ -361,7 +362,8 @@ def _step_docs(chat_id: str, app: dict, text: str, media: dict | None,
     if not caption or not caption.isdigit():
         checklist = _format_checklist(required, counts, app["type"])
         send(chat_id,
-             f"Please add just the document number as the caption \\(e\\.g\\. *1*\\)\\.\n\n{checklist}")
+             f"Please add just the document number as the caption \\(e\\.g\\. *1*\\)\\.\n"
+             f"Or send the file first, then reply to it with the number\\.\n\n{checklist}")
         return
 
     doc = doc_key_from_index(app["type"], int(caption))
@@ -384,7 +386,7 @@ def _step_docs(chat_id: str, app: dict, text: str, media: dict | None,
              f"All categories have at least one file\\.\n"
              f"Send more files or type /done to review and submit\\.")
     else:
-        send(chat_id, f"✅ Received: *{esc(doc['label'])}*\n\n{checklist}\n\nSend the next document\\.")
+        send(chat_id, f"✅ Received: *{esc(doc['label'])}*\n\n{checklist}\n\nSend the next document with its number as the caption, or reply to it with the number\\.")
 
 
 def _step_confirm(chat_id: str, user: dict, app: dict, text: str) -> None:
@@ -511,7 +513,7 @@ def _step_edit_docs(chat_id: str, app: dict, text: str, media: dict | None,
             send(chat_id, f"Documents updated\\.\n\n{summary}\n\n/confirm — submit application")
         else:
             db.update_application(app["id"], current_step="submitted")
-            send(chat_id, "Documents updated\\.")
+            send(chat_id, "Documents updated\\. Your application remains under review\\.")
         return
 
     if t.startswith("/clear"):
@@ -608,7 +610,7 @@ def _step_edit_ippt(chat_id: str, user: dict, app: dict, text: str) -> None:
              f"Your PC has been notified and your application is now pending review\\.")
     elif app["status"] == "draft":
         db.update_application(app["id"], current_step="confirm")
-        send(chat_id, f"IPPT status updated to *{'Done' if done else 'Not done'}*\\.")
+        send(chat_id, f"IPPT status updated to *{'Done' if done else 'Not done'}*\\.\nUse /confirm to review and submit\\.")
     else:
         send(chat_id, f"IPPT status updated to *{'Done' if done else 'Not done'}*\\.")
 
@@ -713,7 +715,7 @@ def _handle_resubmit(chat_id: str, user: dict, app: dict) -> None:
     missing = get_missing_docs(app["type"], uploaded_types)
     if missing:
         labels = ", ".join(d["label"] for d in missing)
-        send(chat_id, f"⚠️ Missing documents: {labels}\\. Please upload before resubmitting\\.")
+        send(chat_id, f"⚠️ Missing documents: {labels}\\.\nUse /edit\\_docs to upload, then /resubmit\\.")
         return
 
     from datetime import datetime, timezone
@@ -732,7 +734,7 @@ def _handle_resubmit(chat_id: str, user: dict, app: dict) -> None:
             f"From: {esc(user['name'])} \\({esc(user.get('platoon') or '?')}\\)\n"
             f"Use /view {app['id']} to review\\."
         )
-        send(chat_id, f"✅ Application \\#{app['id']} resubmitted\\.")
+        send(chat_id, f"✅ Application \\#{app['id']} resubmitted\\. You'll be notified of updates\\.")
 
     elif app["status"] == "revision_requested":
         # Go back to pending_pc
@@ -747,7 +749,7 @@ def _handle_resubmit(chat_id: str, user: dict, app: dict) -> None:
             f"From: {user['name']} \\({user.get('platoon') or '?'}\\)\n"
             f"Use /view {app['id']} to review\\."
         )
-        send(chat_id, f"✅ Application \\#{app['id']} resubmitted\\. Pending {role_label} review\\.")
+        send(chat_id, f"✅ Application \\#{app['id']} resubmitted\\. Pending {role_label} review\\. You'll be notified of updates\\.")
 
 
 def _handle_submitted_msg(chat_id: str, app: dict) -> None:
@@ -763,7 +765,10 @@ def _handle_submitted_msg(chat_id: str, app: dict) -> None:
             f"Your application is pending PC review\\.\n"
             f"Use /edit\\_docs or /edit\\_ippt to make changes before review\\."
         ),
-        "pending_oc": "Your application is pending OC review\\.",
+        "pending_oc": (
+            f"Your application is pending OC review\\.\n"
+            f"Use /edit\\_docs or /edit\\_ippt to make changes while waiting\\."
+        ),
         "oc_approved": (
             f"🎉 Your application has been approved by OC\\!\n"
             f"Please apply on OneNS and reply /applied when done\\."
@@ -851,6 +856,15 @@ def _fmt_status(app: dict, past: list[dict] | None = None) -> str:
         "co_rejected": "❌ CO Rejected",
         "rejected": "❌ Rejected",
     }
+    hints = {
+        "pending_ippt": "/edit\\_ippt — update IPPT status\n/edit\\_docs — update documents",
+        "pending_pc": "/edit\\_docs — update documents\n/edit\\_ippt — update IPPT status",
+        "pending_oc": "/edit\\_docs — update documents\n/edit\\_ippt — update IPPT status",
+        "revision_requested": "/edit\\_docs — update documents\n/resubmit — resubmit for review",
+        "oc_approved": "/applied — confirm you applied on OneNS",
+        "pending_co": "/co\\_approved or /co\\_rejected — update CO decision",
+        "co_rejected": "/edit\\_docs — update documents\n/resubmit — resubmit for review",
+    }
     lines = [
         f"*Application \\#{app['id']}*",
         f"Type: {esc(get_type_label(app['type'])) if app.get('type') else 'Not selected'}",
@@ -860,6 +874,9 @@ def _fmt_status(app: dict, past: list[dict] | None = None) -> str:
         lines.append(f"Note: {esc(app['revision_note'])}")
     if app.get("co_rejection_reason"):
         lines.append(f"CO rejection reason: {esc(app['co_rejection_reason'])}")
+    hint = hints.get(app["status"])
+    if hint:
+        lines.append(f"\n{hint}")
     if past:
         lines.append("")
         lines.append(_fmt_past_apps(past))
