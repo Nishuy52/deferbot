@@ -272,9 +272,9 @@ def _step_ippt(chat_id: str, app: dict, text: str) -> None:
     send(chat_id,
          f"{warning}*Documents required for {esc(get_type_label(app['type']))}:*\n\n"
          f"{checklist}\n\n"
-         f"Send each file as a photo or document\\.\n"
-         f"Include the number \\(1, 2, 3\\.\\.\\.\\) as a caption to tag the category\\.\n"
-         f"Multiple files per category are allowed\\.")
+         f"Send each file as a photo or document with just the number as the caption\\.\n\n"
+         f"Example: To upload document 1, attach the file and type *1* in the caption field\\.\n\n"
+         f"You can send multiple files per category\\.")
 
 
 def _step_docs(chat_id: str, app: dict, text: str, media: dict | None) -> None:
@@ -312,7 +312,7 @@ def _step_docs(chat_id: str, app: dict, text: str, media: dict | None) -> None:
         else:
             send(chat_id,
                  f"*Document checklist:*\n\n{checklist}\n\n"
-                 f"Send each file with the number as a caption\\.")
+                 f"Send each file with just the number as the caption \\(e\\.g\\. *1*\\)\\.")
         return
 
     # Media received — determine category from caption
@@ -320,7 +320,7 @@ def _step_docs(chat_id: str, app: dict, text: str, media: dict | None) -> None:
     if not caption or not caption.isdigit():
         checklist = _format_checklist(required, counts, app["type"])
         send(chat_id,
-             f"Please include the document number as a caption when sending files\\.\n\n{checklist}")
+             f"Please add just the document number as the caption \\(e\\.g\\. *1*\\)\\.\n\n{checklist}")
         return
 
     doc = doc_key_from_index(app["type"], int(caption))
@@ -451,7 +451,7 @@ def _show_edit_docs(chat_id: str, app: dict) -> None:
     checklist = _format_checklist(required, counts, app["type"])
     send(chat_id,
          f"*Edit documents:*\n\n{checklist}\n\n"
-         f"Send new files with the number as a caption to add\\.\n"
+         f"To add a file, attach it with just the number as the caption \\(e\\.g\\. *1*\\)\\.\n"
          f"/clear <number\\> — remove all files for a category\n"
          f"/done — finish editing")
 
@@ -503,7 +503,7 @@ def _step_edit_docs(chat_id: str, app: dict, text: str, media: dict | None) -> N
         caption = text.strip()
         if not caption or not caption.isdigit():
             checklist = _format_checklist(required, counts, app["type"])
-            send(chat_id, f"Please include the document number as a caption\\.\n\n{checklist}")
+            send(chat_id, f"Please add just the document number as the caption \\(e\\.g\\. *1*\\)\\.\n\n{checklist}")
             return
         doc = doc_key_from_index(app["type"], int(caption))
         if not doc:
