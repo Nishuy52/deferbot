@@ -34,7 +34,8 @@ USER_CMDS = {"/start", "/apply", "/status", "/withdraw", "/help",
              "/co_rejected", "/resubmit", "/confirm"}
 
 
-def _run_simulated(admin_id: str, target_id: str, text: str, media: dict | None) -> None:
+def _run_simulated(admin_id: str, target_id: str, text: str, media: dict | None,
+                   reply_media: dict | None = None) -> None:
     """Execute a message as target_id but redirect all bot responses to admin_id."""
     original_send = tg.send
 
@@ -77,7 +78,7 @@ def _run_simulated(admin_id: str, target_id: str, text: str, media: dict | None)
     approval.notify_many = redirected_notify_many
     approval.send_file = redirected_send_file
     try:
-        _handle(target_id, text, media)
+        _handle(target_id, text, media, reply_media)
     finally:
         tg.send = original_send
         tg.notify = _orig_notify
@@ -113,7 +114,7 @@ def _handle(chat_id: str, text: str, media: dict | None, reply_media: dict | Non
         # Redirect this message as the simulated user
         target_id = sim["target"]
         admin_id = sim["admin"]
-        _run_simulated(admin_id, target_id, text, media)
+        _run_simulated(admin_id, target_id, text, media, reply_media)
         return
 
     user = db.get_user(chat_id)
