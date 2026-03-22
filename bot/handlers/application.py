@@ -1,5 +1,6 @@
 """Application wizard state machine with IPPT gating, doc tagging, edits, and OneNS/CO flow."""
 from bot import db, storage
+from bot.storage import MAX_FILE_SIZE, FileTooLargeError
 from bot.config.docs import (
     TYPE_KEYS, get_type_label, get_required_docs,
     get_missing_docs, format_type_menu, type_key_from_index,
@@ -143,7 +144,11 @@ def _no_app(chat_id: str, user: dict, text: str) -> None:
         db.create_application(chat_id)
         send(chat_id, f"*Start a deferment application*\n\nSelect your deferment type:\n\n{format_type_menu(esc)}\n\nReply with a number\\.")
     elif t == "/status":
-        send(chat_id, "You have no active application\\.")
+        past = db.get_past_applications(chat_id)
+        msg = "You have no active application\\."
+        if past:
+            msg += "\n\n" + _fmt_past_apps(past)
+        send(chat_id, msg)
     elif t == "/help":
         send(chat_id, HELP_USER)
     else:
@@ -171,7 +176,8 @@ def _wizard(chat_id: str, user: dict, app: dict, text: str, media: dict | None) 
         return
 
     if t == "/status":
-        send(chat_id, _fmt_status(app))
+        past = db.get_past_applications(chat_id)
+        send(chat_id, _fmt_status(app, past))
         return
 
     if t == "/help":
@@ -322,8 +328,17 @@ def _step_docs(chat_id: str, app: dict, text: str, media: dict | None) -> None:
         send(chat_id, f"Invalid number\\. Please use 1–{len(required)}\\.")
         return
 
+    # Validate file size
+    if media.get("file_size") and media["file_size"] > MAX_FILE_SIZE:
+        send(chat_id, "⚠️ File too large\\. Maximum size is 10 MB\\. Please compress and resend\\.")
+        return
+
     # Save the file
-    path = storage.save_media(app["id"], doc["key"], media["file_id"], media["mimetype"])
+    try:
+        path = storage.save_media(app["id"], doc["key"], media["file_id"], media["mimetype"])
+    except FileTooLargeError:
+        send(chat_id, "⚠️ File too large\\. Maximum size is 10 MB\\. Please compress and resend\\.")
+        return
     db.add_document(app["id"], doc["key"], path,
                     file_id=media["file_id"], mimetype=media["mimetype"])
     db.log_action(app["id"], chat_id, "doc_uploaded", doc["key"])
@@ -494,7 +509,15 @@ def _step_edit_docs(chat_id: str, app: dict, text: str, media: dict | None) -> N
         if not doc:
             send(chat_id, f"Invalid number\\. Please use 1–{len(required)}\\.")
             return
-        path = storage.save_media(app["id"], doc["key"], media["file_id"], media["mimetype"])
+        # Validate file size
+        if media.get("file_size") and media["file_size"] > MAX_FILE_SIZE:
+            send(chat_id, "⚠️ File too large\\. Maximum size is 10 MB\\. Please compress and resend\\.")
+            return
+        try:
+            path = storage.save_media(app["id"], doc["key"], media["file_id"], media["mimetype"])
+        except FileTooLargeError:
+            send(chat_id, "⚠️ File too large\\. Maximum size is 10 MB\\. Please compress and resend\\.")
+            return
         db.add_document(app["id"], doc["key"], path,
                         file_id=media["file_id"], mimetype=media["mimetype"])
         db.log_action(app["id"], chat_id, "doc_uploaded", doc["key"])
@@ -770,7 +793,16 @@ def _build_summary(app: dict) -> str:
     return "\n".join(lines)
 
 
-def _fmt_status(app: dict) -> str:
+def _fmt_past_apps(past: list[dict]) -> str:
+    labels = {"approved": "✅ Approved", "rejected": "❌ Rejected"}
+    entries = ", ".join(
+        f"\\#{p['id']} \\({labels.get(p['status'], p['status'])}\\)"
+        for p in past
+    )
+    return f"Past applications: {entries}"
+
+
+def _fmt_status(app: dict, past: list[dict] | None = None) -> str:
     labels = {
         "draft": "In progress \\(not submitted\\)",
         "pending_ippt": "⚠️ Awaiting IPPT completion",
@@ -792,4 +824,7 @@ def _fmt_status(app: dict) -> str:
         lines.append(f"Note: {esc(app['revision_note'])}")
     if app.get("co_rejection_reason"):
         lines.append(f"CO rejection reason: {esc(app['co_rejection_reason'])}")
+    if past:
+        lines.append("")
+        lines.append(_fmt_past_apps(past))
     return "\n".join(lines)

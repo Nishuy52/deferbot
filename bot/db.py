@@ -93,6 +93,18 @@ def get_active_application(applicant_id: str) -> dict | None:
     return r.data[0] if r.data else None
 
 
+def get_past_applications(applicant_id: str) -> list[dict]:
+    r = (
+        _db().table("applications")
+        .select("id, status")
+        .eq("applicant_id", applicant_id)
+        .in_("status", list(TERMINAL))
+        .order("id", desc=True)
+        .execute()
+    )
+    return r.data
+
+
 def create_application(applicant_id: str) -> dict:
     r = _db().table("applications").insert({"applicant_id": applicant_id}).execute()
     return r.data[0]

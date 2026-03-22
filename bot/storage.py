@@ -4,7 +4,15 @@ import requests
 from bot.db import _client
 
 BUCKET = "documents"
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 _TG = lambda: f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}"
+
+
+class FileTooLargeError(Exception):
+    """Raised when a downloaded file exceeds MAX_FILE_SIZE."""
+    def __init__(self, size: int):
+        self.size = size
+        super().__init__(f"File size {size} exceeds {MAX_FILE_SIZE} byte limit")
 
 
 def save_media(application_id: int, doc_type: str, file_id: str, mimetype: str) -> str:
@@ -18,6 +26,9 @@ def save_media(application_id: int, doc_type: str, file_id: str, mimetype: str) 
     token = os.environ["TELEGRAM_TOKEN"]
     dl = requests.get(f"https://api.telegram.org/file/bot{token}/{tg_path}", timeout=30)
     dl.raise_for_status()
+
+    if len(dl.content) > MAX_FILE_SIZE:
+        raise FileTooLargeError(len(dl.content))
 
     # Upload to Supabase Storage
     ext = _ext(mimetype)
