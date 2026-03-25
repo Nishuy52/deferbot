@@ -143,9 +143,9 @@ def _handle(chat_id: str, text: str, media: dict | None, reply_media: dict | Non
         db.update_user(chat_id, name=text.strip(), reg_step="platoon")
         tg.send(chat_id,
              "⚠️ *Important:* Selecting the wrong platoon means your application will go to the wrong PC and you will *not* be able to submit deferments\\.\n\n"
-             "What is your platoon?\n\n"
+             "What is your platoon? *Reply with just a number*\n\n"
              f"{format_platoon_menu()}\n\n"
-             "Reply with a number\\.")
+             "*Reply with a number (e.g. 1)*\\.")
         return
 
     if user.get("reg_step") == "platoon":
