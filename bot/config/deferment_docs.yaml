@@ -25,6 +25,14 @@ internship_non_credit:
     - key: employer_excuse_letter
       label: "Letter from employer requesting that you be excused from ICT"
 
+overseas_internship:
+  label: "Overseas Internship"
+  docs:
+    - key: contract
+      label: "Signed internship contract (must be signed by both parties, with clear start and end dates)"
+    - key: visa
+      label: "Visa or Visa Application (submit whichever is available)"
+
 off_cycle:
   label: "Off-Cycle School"
   docs:
