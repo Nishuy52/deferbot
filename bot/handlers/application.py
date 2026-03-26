@@ -242,7 +242,7 @@ def _step_type(chat_id: str, app: dict, text: str) -> None:
         send(chat_id, "Please briefly describe your reason for deferment:")
         return
     db.update_application(app["id"], type=key, current_step="ippt_check")
-    send(chat_id, f"Selected: *{esc(get_type_label(key))}*\n\nHave you passed your IPPT/completed your mandatory NSFit?\nReply *yes* or *no*\\.You can still proceed if not yet complete\\. Your PC will only be notified after you update your IPPT status\\.")
+    send(chat_id, f"Selected: *{esc(get_type_label(key))}*\n\nHave you passed your IPPT/completed your mandatory NSFit?\nReply *yes* or *no*\\. \nYou can still proceed if not yet complete\\. Your PC will only be notified after you update your IPPT status\\.")
 
 
 def _step_other_detail(chat_id: str, app: dict, text: str) -> None:
