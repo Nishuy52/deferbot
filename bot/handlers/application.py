@@ -250,7 +250,7 @@ def _step_other_detail(chat_id: str, app: dict, text: str) -> None:
         send(chat_id, "Please provide a brief description\\.")
         return
     db.update_application(app["id"], type_detail=text, current_step="ippt_check")
-    send(chat_id, "Have you passed your IPPT/completed your mandatory NSFit?\nReply *yes* or *no*\\.")
+    send(chat_id, "Have you passed your IPPT/completed your mandatory NSFit?\nReply *yes* or *no*\\. You can still proceedif not yet complete\\. Your PC will only be notified after you update your IPPT status\\.")
 
 
 def _step_ippt(chat_id: str, app: dict, text: str) -> None:
