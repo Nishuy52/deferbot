@@ -256,7 +256,7 @@ def _step_other_detail(chat_id: str, app: dict, text: str) -> None:
 def _step_ippt(chat_id: str, app: dict, text: str) -> None:
     t = text.lower()
     if t not in ("yes", "no", "y", "n"):
-        send(chat_id, "Please reply *yes* or *no*\\.")
+        send(chat_id, "Please reply *yes* or *no*\\. You can still proceed\\. Your PC will only be notified after you update your IPPT status\\.")
         return
     done = t.startswith("y")
     db.update_application(app["id"], ippt_done=done, current_step="doc_collect")
