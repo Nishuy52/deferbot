@@ -35,6 +35,7 @@ def handle(chat_id: str, user: dict, cmd: str, args: list[str]) -> bool:
         "/setstatus": _setstatus,
         "/co_status": _co_status,
         "/edit_decision": _edit_decision,
+        "/remind": _remind,
     }
     fn = dispatch.get(cmd)
     if fn:
@@ -153,6 +154,118 @@ def _format_app_list_by_platoon(apps: list[dict], user: dict) -> str:
         lines = [_format_app_line(a) for a in grouped[plt]]
         sections.append(f"{header}\n" + "\n".join(lines))
     return "\n\n".join(sections)
+
+
+# ── Remind Command ────────────────────────────────────────────────────────
+
+_USER_ACTION_STATUSES = {"draft", "pending_ippt", "revision_requested", "oc_approved", "co_rejected"}
+
+_REMIND_MSGS = {
+    "draft": (
+        "📋 *Reminder: Your deferment application is still a draft\\.* "
+        "Use /apply to continue filling it in\\."
+    ),
+    "pending_ippt": (
+        "🏃 *Reminder: Your application is waiting on your IPPT/NSFit completion\\.* "
+        "Use /edit\\_ippt to update your status once done\\."
+    ),
+    "revision_requested": (
+        "📝 *Reminder: Revisions have been requested on your application\\.* "
+        "Use /resubmit to upload updated documents\\."
+    ),
+    "oc_approved": (
+        "✅ *Reminder: Your application has been approved by the OC\\.* "
+        "Please apply on OneNS and then use /applied to confirm\\."
+    ),
+    "co_rejected": (
+        "❌ *Reminder: Your CO has rejected your deferment application\\.* "
+        "Use /resubmit to submit an updated application\\."
+    ),
+}
+_WITHDRAW_NOTE = "\n\n_If you are no longer applying, use /withdraw to cancel\\._"
+
+
+def _remind(chat_id: str, user: dict, args: list[str]) -> None:
+    """Broadcast status-specific reminders to all users/reviewers with pending actions."""
+    apps = db.get_active_for_oc()
+
+    # --- Applicant reminders ---
+    # Keep only the most recent active app per applicant (get_active_for_oc orders by
+    # platoon then id desc, so we can't rely on list order for global deduplication).
+    latest: dict[str, dict] = {}
+    for app in apps:
+        aid = app["applicant_id"]
+        if aid not in latest or app["id"] > latest[aid]["id"]:
+            latest[aid] = app
+
+    applicant_count = 0
+    status_counts: dict[str, int] = {}
+    for app in latest.values():
+        status = app["status"]
+        if status not in _USER_ACTION_STATUSES:
+            continue
+        send(app["applicant_id"], _REMIND_MSGS[status] + _WITHDRAW_NOTE)
+        applicant_count += 1
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    # --- PC reminders ---
+    # Group non-HQ pending_pc apps by platoon; notify each platoon's PCs once.
+    platoon_counts: dict[str, int] = {}
+    for app in apps:
+        if app["status"] == "pending_pc" and not _is_hq_app(app):
+            platoon = (app.get("applicant_platoon") or "").upper()
+            platoon_counts[platoon] = platoon_counts.get(platoon, 0) + 1
+
+    pc_notified: set[str] = set()
+    for platoon, count in platoon_counts.items():
+        noun = "application" if count == 1 else "applications"
+        for pc in db.get_pcs_for_platoon(platoon):
+            if pc["id"] not in pc_notified:
+                send(pc["id"],
+                     f"📋 *Reminder: You have {count} {noun} from "
+                     f"{esc(platoon)} pending your review\\.* "
+                     f"Use /pending to see them\\.")
+                pc_notified.add(pc["id"])
+
+    # --- OC reminders ---
+    # pending_oc apps + HQ pending_pc apps; exclude the caller (they get the summary).
+    oc_app_count = sum(
+        1 for a in apps
+        if a["status"] == "pending_oc" or (a["status"] == "pending_pc" and _is_hq_app(a))
+    )
+    oc_notified: set[str] = set()
+    if oc_app_count > 0:
+        noun = "application" if oc_app_count == 1 else "applications"
+        for oc in db.get_users_by_role("oc"):
+            if oc["id"] != chat_id and oc["id"] not in oc_notified:
+                send(oc["id"],
+                     f"📋 *Reminder: You have {oc_app_count} {noun} pending your review\\.* "
+                     f"Use /pending to see them\\.")
+                oc_notified.add(oc["id"])
+
+    # --- Summary to caller ---
+    if not applicant_count and not pc_notified and not oc_notified:
+        send(chat_id, "✅ No reminders to send — no pending actions found\\.")
+        return
+
+    lines = []
+    if applicant_count:
+        breakdown = ", ".join(
+            f"{_status_display(s)}: {n}" for s, n in status_counts.items()
+        )
+        noun = "soldier" if applicant_count == 1 else "soldiers"
+        lines.append(f"• {applicant_count} {noun} \\({esc(breakdown)}\\)")
+    if pc_notified:
+        total = sum(platoon_counts.values())
+        noun_pc = "PC" if len(pc_notified) == 1 else "PCs"
+        noun_app = "application" if total == 1 else "applications"
+        lines.append(f"• {len(pc_notified)} {noun_pc} \\({total} {noun_app} pending\\)")
+    if oc_notified:
+        noun_oc = "OC" if len(oc_notified) == 1 else "OCs"
+        noun_app = "application" if oc_app_count == 1 else "applications"
+        lines.append(f"• {len(oc_notified)} {noun_oc} \\({oc_app_count} {noun_app} pending\\)")
+
+    send(chat_id, "✅ *Reminders sent:*\n" + "\n".join(lines))
 
 
 # ── List Commands ─────────────────────────────────────────────────────────
