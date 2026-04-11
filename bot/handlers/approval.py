@@ -110,6 +110,7 @@ def _status_display(status: str) -> str:
     """Human-readable status for list views."""
     labels = {
         "draft": "Draft",
+        "draft_confirm": "Ready to Submit",
         "pending_ippt": "Awaiting IPPT",
         "pending_pc": "Pending PC",
         "pending_oc": "Pending OC",
@@ -158,12 +159,15 @@ def _format_app_list_by_platoon(apps: list[dict], user: dict) -> str:
 
 # ── Remind Command ────────────────────────────────────────────────────────
 
-_USER_ACTION_STATUSES = {"draft", "pending_ippt", "revision_requested", "oc_approved", "co_rejected"}
+_USER_ACTION_STATUSES = {"draft", "draft_confirm", "pending_ippt", "revision_requested", "oc_approved", "co_rejected"}
 
 _REMIND_MSGS = {
     "draft": (
         "📋 *Reminder: Your deferment application is still a draft\\.* "
         "Use /apply to continue filling it in\\."
+    ),
+    "draft_confirm": (
+        "📋 *Reminder: Your documents are ready — use /confirm to submit your application\\.*"
     ),
     "pending_ippt": (
         "🏃 *Reminder: Your application is waiting on your IPPT/NSFit completion\\.* "
@@ -202,11 +206,16 @@ def _remind(chat_id: str, user: dict, args: list[str]) -> None:
     status_counts: dict[str, int] = {}
     for app in latest.values():
         status = app["status"]
-        if status not in _USER_ACTION_STATUSES:
+        remind_key = (
+            "draft_confirm"
+            if status == "draft" and app.get("current_step") == "confirm"
+            else status
+        )
+        if remind_key not in _USER_ACTION_STATUSES:
             continue
-        send(app["applicant_id"], _REMIND_MSGS[status] + _WITHDRAW_NOTE)
+        send(app["applicant_id"], _REMIND_MSGS[remind_key] + _WITHDRAW_NOTE)
         applicant_count += 1
-        status_counts[status] = status_counts.get(status, 0) + 1
+        status_counts[remind_key] = status_counts.get(remind_key, 0) + 1
 
     # --- PC reminders ---
     # Group non-HQ pending_pc apps by platoon; notify each platoon's PCs once.
