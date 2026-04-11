@@ -24,7 +24,7 @@ def _send_diagram(chat_id: str | int, caption: str | None = None) -> None:
 
 PC_CMDS = {"/pending", "/approve", "/reject", "/revise", "/view",
            "/list_active", "/list_all", "/edit_decision"}
-OC_CMDS = {"/list", "/setstatus", "/co_status"}
+OC_CMDS = {"/list", "/setstatus", "/co_status", "/remind"}
 ADMIN_CMDS = {"/setrole", "/setflag", "/removeflag", "/unregister",
               "/createuser", "/createusers", "/simulate", "/simulatemode",
               "/skipdocs"}

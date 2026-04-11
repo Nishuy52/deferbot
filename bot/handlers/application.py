@@ -92,7 +92,8 @@ HELP_OC = (
     "/revise — Send back for revision \\(after /view\\)\n"
     "/edit\\_decision — Edit your past decision\n"
     "/co\\_status <id\\> approved\\|rejected — Update CO decision\n"
-    "/setstatus <id\\> approved\\|rejected — Manually set outcome"
+    "/setstatus <id\\> approved\\|rejected — Manually set outcome\n"
+    "/remind — Send reminders to all users with pending actions"
 )
 
 HELP_ADMIN = (
@@ -105,7 +106,8 @@ HELP_ADMIN = (
     "/createusers <count\\> \\| <platoon\\> \\[\\| <role\\>\\] — Bulk create test users\n"
     "/simulate <id\\> \\| <msg\\> — Send a message as another user\n"
     "/simulatemode <id\\> — Enter persistent simulate mode \\(off to exit\\)\n"
-    "/skipdocs <id\\> — Auto\\-fill documents with dummy data"
+    "/skipdocs <id\\> — Auto\\-fill documents with dummy data\n"
+    "/remind — Send reminders to all users with pending actions"
 )
 
 
