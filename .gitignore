@@ -9,3 +9,4 @@ venv/
 .claude
 CLAUDE.md
 docs/
+.worktrees/
