@@ -214,6 +214,8 @@ def _remind(chat_id: str, user: dict, args: list[str]) -> None:
     for app in apps:
         if app["status"] == "pending_pc" and not _is_hq_app(app):
             platoon = (app.get("applicant_platoon") or "").upper()
+            if not platoon:
+                continue
             platoon_counts[platoon] = platoon_counts.get(platoon, 0) + 1
 
     pc_notified: set[str] = set()
@@ -228,7 +230,9 @@ def _remind(chat_id: str, user: dict, args: list[str]) -> None:
                 pc_notified.add(pc["id"])
 
     # --- OC reminders ---
-    # pending_oc apps + HQ pending_pc apps; exclude the caller (they get the summary).
+    # pending_oc apps + HQ pending_pc apps; pending_co is excluded because
+    # the CO decision is an external process with no bot action for the OC.
+    # Caller is excluded from OC broadcast (they get the summary instead).
     oc_app_count = sum(
         1 for a in apps
         if a["status"] == "pending_oc" or (a["status"] == "pending_pc" and _is_hq_app(a))
