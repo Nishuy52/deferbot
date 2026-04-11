@@ -7,3 +7,5 @@ venv/
 
 .vercel
 .claude
+CLAUDE.md
+docs/
