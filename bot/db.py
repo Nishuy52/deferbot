@@ -3,7 +3,7 @@ import os
 from functools import lru_cache
 from supabase import create_client, Client
 
-HQ_PLATOON = "HQ"  # OC acts as PC for this platoon
+HQ_PLATOON = "SCT"  # OC acts as PC for this platoon
 
 @lru_cache(maxsize=1)
 def _client() -> Client:
