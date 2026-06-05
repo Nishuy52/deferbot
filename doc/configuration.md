@@ -103,26 +103,7 @@ start and end dates").
 
 ---
 
-## 3. What is *not* in config (NS-specific by design)
-
-The bot is purpose-built for the NS deferment workflow, so the following are part
-of the application logic rather than configuration. A typical NS unit will not
-need to change them, but they are listed here so you know the boundary:
-
-| Concept | Where it lives | Notes |
-|---|---|---|
-| Role hierarchy (user → PC → OC → CO) | `bot/handlers/approval.py`, `bot/db.py` | The PC → OC → CO review chain is hardcoded. |
-| IPPT / NSFit gating | `bot/handlers/application.py` | "Have you completed IPPT?" step and the `pending_ippt` hold. |
-| OneNS portal step | `bot/handlers/approval.py`, `application.py` | The `/applied` → `pending_co` → CO-decision flow. |
-| Status names & transitions | `bot/handlers/approval.py`, `bot/diagram.py` | See the state machine in the [User Guide](user-guide.md). |
-
-If you need to repurpose the bot for a non-NS workflow (different roles or
-terminology), these are the files to edit — but that is a code change, not a
-configuration change.
-
----
-
-## 4. Validating your changes
+## 3. Validating your changes
 
 Both YAML files are parsed at startup, so a syntax error will surface
 immediately. After editing, run a quick parse check before deploying:
