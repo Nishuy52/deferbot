@@ -1,7 +1,7 @@
 """Top-level message router: registration → commands → application wizard."""
 from bot import db, diagram
 import bot.telegram as tg
-from bot.handlers import application, approval, admin
+from bot.handlers import application, approval, admin, platoon_change
 from bot.config.platoons import format_platoon_menu, platoon_from_index, PLATOONS
 
 def _send_diagram(chat_id: str | int, caption: str | None = None) -> None:
@@ -31,7 +31,7 @@ ADMIN_CMDS = {"/setrole", "/setflag", "/removeflag", "/unregister",
 # User commands handled directly by the application handler
 USER_CMDS = {"/start", "/apply", "/status", "/withdraw", "/help",
              "/edit_docs", "/edit_ippt", "/applied", "/co_approved",
-             "/co_rejected", "/resubmit", "/confirm"}
+             "/co_rejected", "/resubmit", "/confirm", "/changeplatoon"}
 
 
 def _run_simulated(admin_id: str, target_id: str, text: str, media: dict | None,
@@ -77,6 +77,9 @@ def _run_simulated(admin_id: str, target_id: str, text: str, media: dict | None,
     approval.notify = redirected_send
     approval.notify_many = redirected_notify_many
     approval.send_file = redirected_send_file
+    platoon_change.send = redirected_send
+    platoon_change.notify = redirected_send
+    platoon_change.notify_many = redirected_notify_many
     try:
         _handle(target_id, text, media, reply_media)
     finally:
@@ -92,6 +95,9 @@ def _run_simulated(admin_id: str, target_id: str, text: str, media: dict | None,
         approval.notify = _orig_notify
         approval.notify_many = _orig_notify_many
         approval.send_file = _orig_send_file
+        platoon_change.send = original_send
+        platoon_change.notify = _orig_notify
+        platoon_change.notify_many = _orig_notify_many
 
 
 def on_update(body: dict) -> None:
@@ -205,6 +211,10 @@ def _handle(chat_id: str, text: str, media: dict | None, reply_media: dict | Non
             tg.send(chat_id, "❌ PC access required\\.")
             return
         approval.handle(chat_id, user, cmd, args)
+        return
+
+    if cmd == "/changeplatoon":
+        platoon_change.start(chat_id, user, args)
         return
 
     # ── Application wizard / user commands ────────────────────────────────

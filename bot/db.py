@@ -75,6 +75,70 @@ def get_approvers_for_applicant(applicant: dict) -> tuple[list[dict], bool]:
     return get_pcs_for_platoon(applicant.get("platoon") or ""), False
 
 
+# ── Platoon Change Requests ──────────────────────────────────────────────────
+
+def create_platoon_change_request(user_id: str, from_platoon: str | None,
+                                  to_platoon: str) -> dict:
+    r = _db().table("platoon_change_requests").insert({
+        "user_id": user_id,
+        "from_platoon": from_platoon,
+        "to_platoon": to_platoon,
+    }).execute()
+    return r.data[0]
+
+
+def get_platoon_change_request(req_id: int) -> dict | None:
+    """Get a change request with requester info from the view."""
+    r = (
+        _db().table("platoon_change_requests_full")
+        .select("*").eq("id", req_id).execute()
+    )
+    return r.data[0] if r.data else None
+
+
+def get_active_platoon_change_request(user_id: str) -> dict | None:
+    """The user's existing pending request, if any (blocks duplicates)."""
+    r = (
+        _db().table("platoon_change_requests")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("status", "pending")
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return r.data[0] if r.data else None
+
+
+def get_pending_changes_for_platoon(platoon: str) -> list[dict]:
+    """Pending requests where the incoming (requested) platoon is `platoon` (for a PC)."""
+    r = (
+        _db().table("platoon_change_requests_full")
+        .select("*")
+        .eq("status", "pending")
+        .eq("to_platoon", platoon)
+        .order("id", desc=True)
+        .execute()
+    )
+    return r.data
+
+
+def get_all_pending_changes() -> list[dict]:
+    """All pending requests (for OC/admin)."""
+    r = (
+        _db().table("platoon_change_requests_full")
+        .select("*")
+        .eq("status", "pending")
+        .order("id", desc=True)
+        .execute()
+    )
+    return r.data
+
+
+def update_platoon_change_request(req_id: int, **fields) -> None:
+    _db().table("platoon_change_requests").update(fields).eq("id", req_id).execute()
+
+
 # ── Applications ───────────────────────────────────────────────────────────
 
 TERMINAL = {"approved", "rejected"}

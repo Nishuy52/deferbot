@@ -1,8 +1,10 @@
 """PC/OC approval commands with context-aware review, decision editing, and co-status."""
+import re
 from datetime import datetime, timezone
 
 from bot import db
 from bot.config.docs import get_type_label, get_required_docs, get_doc_label
+from bot.handlers import platoon_change
 from bot.telegram import send, send_file, notify, notify_many, esc
 
 _NOW = lambda: datetime.now(timezone.utc).isoformat()
@@ -19,6 +21,9 @@ def handle(chat_id: str, user: dict, cmd: str, args: list[str]) -> bool:
     """Return True if command was handled."""
     # Check if user is in a review context step
     review_step = user.get("review_step")
+    if review_step in platoon_change.REVIEW_STEPS:
+        platoon_change.handle_review_step(chat_id, user, cmd, review_step)
+        return True
     if review_step in _REVIEW_STEPS:
         _handle_review_step(chat_id, user, cmd, args, review_step)
         return True
@@ -66,7 +71,15 @@ def _is_hq_app(app: dict) -> bool:
 
 
 def _clear_review_context(chat_id: str) -> None:
-    db.update_user(chat_id, viewing_app_id=None, review_step=None)
+    db.update_user(chat_id, viewing_app_id=None, viewing_change_id=None, review_step=None)
+
+
+def _change_target(user: dict, args: list[str]) -> int | None:
+    """Resolve a platoon-change-request id from a 'P<id>' arg or the viewing context."""
+    if args:
+        m = re.fullmatch(r"[Pp](\d+)", args[0])
+        return int(m.group(1)) if m else None
+    return user.get("viewing_change_id")
 
 
 def _get_viewing_app(user: dict) -> dict | None:
@@ -326,16 +339,23 @@ def _pending(chat_id: str, user: dict, args: list[str]) -> None:
     else:
         apps = db.get_pending_for_pc(user.get("platoon") or "")
 
+    change_section = platoon_change.pending_section(user)
+
     if not apps:
+        if change_section:
+            send(chat_id, change_section)
+            return
         send(chat_id, "No pending applications\\.\nUse /list\\_active to view all active applications\\.")
         return
 
-    send(
-        chat_id,
+    msg = (
         "*Pending applications:*\n\n"
         + _format_app_list(apps, user)
         + "\n\n_To review: /view <id\\>, then /approve, /reject, or /revise_"
     )
+    if change_section:
+        msg += "\n\n" + change_section
+    send(chat_id, msg)
 
 
 def _list(chat_id: str, user: dict, args: list[str]) -> None:
@@ -353,6 +373,10 @@ def _list(chat_id: str, user: dict, args: list[str]) -> None:
 # ── View (enters review context) ─────────────────────────────────────────
 
 def _view(chat_id: str, user: dict, args: list[str]) -> None:
+    if args and re.fullmatch(r"[Pp]\d+", args[0]):
+        platoon_change.view(chat_id, user, int(args[0][1:]))
+        return
+
     app_id = _parse_id(args)
     if not app_id:
         send(chat_id, "Usage: /view <id\\>")
@@ -364,7 +388,7 @@ def _view(chat_id: str, user: dict, args: list[str]) -> None:
         return
 
     # Set review context
-    db.update_user(chat_id, viewing_app_id=app_id, review_step=None)
+    db.update_user(chat_id, viewing_app_id=app_id, viewing_change_id=None, review_step=None)
 
     applicant = db.get_user(app["applicant_id"])
     docs = db.get_documents(app_id)
@@ -449,6 +473,11 @@ def _view(chat_id: str, user: dict, args: list[str]) -> None:
 # ── Context-Aware Review Actions ──────────────────────────────────────────
 
 def _approve(chat_id: str, user: dict, args: list[str]) -> None:
+    change_id = _change_target(user, args)
+    if change_id is not None:
+        platoon_change.approve(chat_id, user, change_id)
+        return
+
     # Try context-aware first (no args needed)
     app = _get_viewing_app(user)
     if not app and args:
@@ -478,12 +507,17 @@ def _approve(chat_id: str, user: dict, args: list[str]) -> None:
             return
 
     # Enter comment step
-    db.update_user(chat_id, viewing_app_id=app["id"], review_step="awaiting_approve_comment")
+    db.update_user(chat_id, viewing_app_id=app["id"], viewing_change_id=None, review_step="awaiting_approve_comment")
     name = esc(app.get("applicant_name") or "?")
     send(chat_id, f"Approving *{name}*'s application \\#{app['id']}\\.\n\nAny comments? \\(optional\\)\nReply with your comment, /skip, or /cancel\\.")
 
 
 def _reject(chat_id: str, user: dict, args: list[str]) -> None:
+    change_id = _change_target(user, args)
+    if change_id is not None:
+        platoon_change.reject(chat_id, user, change_id)
+        return
+
     app = _get_viewing_app(user)
     if not app and args:
         app_id = _parse_id(args)
@@ -510,7 +544,7 @@ def _reject(chat_id: str, user: dict, args: list[str]) -> None:
             send(chat_id, f"Application \\#{app['id']} is not in a rejectable state\\.")
             return
 
-    db.update_user(chat_id, viewing_app_id=app["id"], review_step="awaiting_reject_reason")
+    db.update_user(chat_id, viewing_app_id=app["id"], viewing_change_id=None, review_step="awaiting_reject_reason")
     name = esc(app.get("applicant_name") or "?")
     send(chat_id, f"Rejecting *{name}*'s application \\#{app['id']}\\.\n\nPlease provide a reason \\(or /cancel\\):")
 
@@ -542,7 +576,7 @@ def _revise(chat_id: str, user: dict, args: list[str]) -> None:
             send(chat_id, f"Application \\#{app['id']} is not in a revisable state\\.")
             return
 
-    db.update_user(chat_id, viewing_app_id=app["id"], review_step="awaiting_revise_note")
+    db.update_user(chat_id, viewing_app_id=app["id"], viewing_change_id=None, review_step="awaiting_revise_note")
     name = esc(app.get("applicant_name") or "?")
     send(chat_id, f"Sending *{name}*'s application \\#{app['id']} back for revision\\.\n\nWhat needs to be revised? \\(/cancel to abort\\)")
 
@@ -724,7 +758,7 @@ def _edit_decision(chat_id: str, user: dict, args: list[str]) -> None:
 
     current_comment = action_log.get("note") if action_log else None
 
-    db.update_user(chat_id, viewing_app_id=app["id"], review_step="awaiting_edit_action")
+    db.update_user(chat_id, viewing_app_id=app["id"], viewing_change_id=None, review_step="awaiting_edit_action")
     comment_line = f"Comment: {esc(current_comment)}" if current_comment else "Comment: —"
     send(chat_id,
          f"*Application \\#{app['id']} — Your current decision:*\n"

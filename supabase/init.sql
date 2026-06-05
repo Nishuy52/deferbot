@@ -3,11 +3,13 @@
 -- Safe to re-run: drops all existing tables first.
 
 -- 1. Drop view and tables in dependency-safe order
-DROP VIEW  IF EXISTS applications_full CASCADE;
-DROP TABLE IF EXISTS documents         CASCADE;
-DROP TABLE IF EXISTS audit_log         CASCADE;
-DROP TABLE IF EXISTS applications      CASCADE;
-DROP TABLE IF EXISTS users             CASCADE;
+DROP VIEW  IF EXISTS applications_full          CASCADE;
+DROP VIEW  IF EXISTS platoon_change_requests_full CASCADE;
+DROP TABLE IF EXISTS documents                  CASCADE;
+DROP TABLE IF EXISTS audit_log                  CASCADE;
+DROP TABLE IF EXISTS platoon_change_requests    CASCADE;
+DROP TABLE IF EXISTS applications               CASCADE;
+DROP TABLE IF EXISTS users                      CASCADE;
 
 -- 2. Create tables
 
@@ -19,6 +21,7 @@ CREATE TABLE users (
     pc_can_submit_to_oc BOOLEAN NOT NULL DEFAULT FALSE,
     reg_step            TEXT,                      -- NULL = registered | 'name' | 'platoon'
     viewing_app_id      INTEGER,                   -- FK added after applications table exists
+    viewing_change_id   INTEGER,                   -- FK added after platoon_change_requests exists
     review_step         TEXT,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -46,6 +49,25 @@ CREATE INDEX ON applications(status);
 ALTER TABLE users
     ADD CONSTRAINT users_viewing_app_id_fkey
     FOREIGN KEY (viewing_app_id) REFERENCES applications(id);
+
+CREATE TABLE platoon_change_requests (
+    id            SERIAL PRIMARY KEY,
+    user_id       TEXT NOT NULL REFERENCES users(id),
+    from_platoon  TEXT,
+    to_platoon    TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | rejected
+    decided_by    TEXT REFERENCES users(id),
+    decision_note TEXT,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved_at   TIMESTAMPTZ
+);
+
+CREATE INDEX ON platoon_change_requests(status, to_platoon);
+
+-- Deferred FK: users.viewing_change_id → platoon_change_requests.id
+ALTER TABLE users
+    ADD CONSTRAINT users_viewing_change_id_fkey
+    FOREIGN KEY (viewing_change_id) REFERENCES platoon_change_requests(id);
 
 CREATE TABLE documents (
     id              SERIAL PRIMARY KEY,
@@ -78,3 +100,11 @@ SELECT
 FROM applications a
 JOIN users u ON a.applicant_id = u.id
 LEFT JOIN users r ON a.reviewed_by = r.id;
+
+-- 4. View: platoon change requests with requester info
+CREATE VIEW platoon_change_requests_full AS
+SELECT
+    p.*,
+    u.name AS requester_name
+FROM platoon_change_requests p
+JOIN users u ON p.user_id = u.id;
