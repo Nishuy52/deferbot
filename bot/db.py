@@ -67,12 +67,35 @@ def get_pcs_for_platoon(platoon: str) -> list[dict]:
     return r.data
 
 
+def platoon_has_pc(platoon: str) -> bool:
+    """True if the platoon has at least one registered PC."""
+    return bool(get_pcs_for_platoon(platoon))
+
+
+def get_ocs_for_platoon(platoon: str) -> list[dict]:
+    """OCs/admins belonging to the given platoon (fallback PC reviewers)."""
+    r = (
+        _db().table("users").select("*")
+        .in_("role", ["oc", "admin"])
+        .eq("platoon", platoon)
+        .execute()
+    )
+    return r.data
+
+
 def get_approvers_for_applicant(applicant: dict) -> tuple[list[dict], bool]:
-    """Return (approvers, is_hq) where is_hq means OC is acting as PC."""
-    platoon = (applicant.get("platoon") or "").upper()
-    if platoon == HQ_PLATOON:
+    """Return (approvers, oc_acts_as_pc).
+
+    oc_acts_as_pc is True when an OC reviews this app at the PC stage — either
+    because the applicant is HQ (any OC), or (fallback) because the applicant's
+    platoon has no registered PC, in which case that platoon's own OCs review it.
+    """
+    raw = applicant.get("platoon") or ""
+    if raw.upper() == HQ_PLATOON:
         return get_users_by_role("oc"), True
-    return get_pcs_for_platoon(applicant.get("platoon") or ""), False
+    if not platoon_has_pc(raw):
+        return get_ocs_for_platoon(raw), True
+    return get_pcs_for_platoon(raw), False
 
 
 # ── Platoon Change Requests ──────────────────────────────────────────────────
@@ -226,8 +249,12 @@ def get_all_for_pc(platoon: str) -> list[dict]:
     return r.data
 
 
-def get_pending_for_oc() -> list[dict]:
-    """pending_oc applications + pending_pc for HQ (where OC acts as PC)."""
+def get_pending_for_oc(oc_platoon: str | None = None) -> list[dict]:
+    """pending_oc applications + pending_pc apps the OC handles as PC.
+
+    The PC-stage apps are HQ apps (any OC) plus, when oc_platoon is given and that
+    platoon has no registered PC, that platoon's own pending_pc apps (fallback).
+    """
     oc = (
         _db().table("applications_full")
         .select("*")
@@ -241,7 +268,16 @@ def get_pending_for_oc() -> list[dict]:
         .eq("applicant_platoon", HQ_PLATOON)
         .execute()
     ).data
-    return oc + hq
+    fallback = []
+    if oc_platoon and oc_platoon.upper() != HQ_PLATOON and not platoon_has_pc(oc_platoon):
+        fallback = (
+            _db().table("applications_full")
+            .select("*")
+            .eq("status", "pending_pc")
+            .eq("applicant_platoon", oc_platoon)
+            .execute()
+        ).data
+    return oc + hq + fallback
 
 
 def get_active_for_oc() -> list[dict]:

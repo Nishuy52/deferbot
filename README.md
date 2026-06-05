@@ -61,7 +61,7 @@ See [doc/installation.md](doc/installation.md) for the full walkthrough.
 /list_active          — All active applications, sorted by platoon
 /list_all             — All applications, sorted by platoon
 /list [status]        — All applications (optional status filter)
-/pending              — HQ pending_pc + all pending_oc
+/pending              — HQ pending_pc + all pending_oc + own-platoon pending_pc (when platoon has no PC)
 /view <id>            — View application (shows which PC reviewed)
 /approve              — Approve (after /view)
 /reject               — Reject (after /view)

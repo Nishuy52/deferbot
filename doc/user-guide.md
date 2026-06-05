@@ -5,7 +5,7 @@ The NS Deferment Bot manages the end-to-end workflow for NS deferment applicatio
 **Roles:**
 - **user** — Regular soldier. Submits and tracks applications.
 - **pc** — Platoon commander. Reviews applications from their own platoon.
-- **oc** — Officer commanding. Reviews all applications after PC; acts as PC for HQ soldiers.
+- **oc** — Officer commanding. Reviews all applications after PC; acts as PC for HQ soldiers, and as a fallback PC for their own platoon when it has no registered PC.
 - **admin** — Full access plus user management and testing commands.
 
 ---
@@ -318,7 +318,9 @@ After PC/OC reviews: edits are LOCKED.
 │ SGT Lim Ah Kow  │ Pending PC    │ Review (as PC)   │
 └─────────────────────────────────────────────────────┘
 
-OC notified ONLY when PC approves (app enters pending_oc).
+OC notified when PC approves (app enters pending_oc).
+For HQ — and for any platoon with no registered PC — the OC is notified at
+submission and reviews the pending_pc app directly (acting as PC).
 
 /view <id> →
 ┌─────────────────────────────────────────┐
@@ -642,9 +644,9 @@ POST-SUBMIT EDIT (/edit_docs):
 - `/list [status]` — All applications (optional status filter)
 - `/co_status <id> approved|rejected` — Update CO decision for an application
 - `/setstatus <id> approved|rejected` — Manually set final outcome
-- `/pending` — HQ pending_pc + all pending_oc
+- `/pending` — HQ pending_pc + all pending_oc + own-platoon pending_pc when the platoon has no PC
 - `/view <id>` — View application (shows which PC reviewed)
-- `/approve` — Approve (after /view; for HQ: direct; for others: OC approval)
+- `/approve` — Approve (after /view; for HQ or a PC-less own platoon: direct; for others: OC approval)
 - `/reject` — Reject (after /view)
 - `/revise` — Send back for revision (after /view)
 - `/edit_decision` — Edit your past decision (only if user hasn't applied on OneNS)

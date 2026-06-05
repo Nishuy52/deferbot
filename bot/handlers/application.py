@@ -19,7 +19,9 @@ def get_menu(role: str, chat_id: str | None = None) -> str:
             platoon = u.get("platoon") if u else None
             pending = db.get_pending_for_pc(platoon) if platoon else []
         else:
-            pending = db.get_pending_for_oc()
+            u = db.get_user(chat_id) if chat_id else None
+            oc_platoon = u.get("platoon") if u else None
+            pending = db.get_pending_for_oc(oc_platoon)
         count = len(pending) if pending else 0
         noun = "application" if count == 1 else "applications"
         pending_line = f"📋 *{count} {noun} pending your approval\\.*\n\n"

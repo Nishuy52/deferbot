@@ -70,6 +70,22 @@ def _is_hq_app(app: dict) -> bool:
     return (app.get("applicant_platoon") or "").upper() == db.HQ_PLATOON
 
 
+def _oc_acts_as_pc(user: dict, app: dict) -> bool:
+    """True if this OC should review this pending_pc app as the PC.
+
+    HQ apps are handled by any OC; otherwise an OC may act as PC only for their
+    own platoon and only when that platoon has no registered PC (fallback).
+    """
+    if app.get("status") != "pending_pc":
+        return False
+    if _is_hq_app(app):
+        return True
+    platoon = (app.get("applicant_platoon") or "").upper()
+    if not platoon or platoon != (user.get("platoon") or "").upper():
+        return False
+    return not db.platoon_has_pc(app.get("applicant_platoon") or "")
+
+
 def _clear_review_context(chat_id: str) -> None:
     db.update_user(chat_id, viewing_app_id=None, viewing_change_id=None, review_step=None)
 
@@ -230,26 +246,42 @@ def _remind(chat_id: str, user: dict, args: list[str]) -> None:
         applicant_count += 1
         status_counts[remind_key] = status_counts.get(remind_key, 0) + 1
 
-    # --- PC reminders ---
-    # Group non-HQ pending_pc apps by platoon; notify each platoon's PCs once.
+    # --- PC / fallback-OC reminders ---
+    # Group non-HQ pending_pc apps by platoon. Notify each platoon's PCs; if a
+    # platoon has no PC, notify that platoon's OCs (fallback reviewers) instead.
     platoon_counts: dict[str, int] = {}
     for app in apps:
         if app["status"] == "pending_pc" and not _is_hq_app(app):
-            platoon = (app.get("applicant_platoon") or "").upper()
+            platoon = app.get("applicant_platoon") or ""
             if not platoon:
                 continue
             platoon_counts[platoon] = platoon_counts.get(platoon, 0) + 1
 
     pc_notified: set[str] = set()
+    fallback_oc_notified: set[str] = set()
+    pc_app_total = 0
+    fallback_app_total = 0
     for platoon, count in platoon_counts.items():
         noun = "application" if count == 1 else "applications"
-        for pc in db.get_pcs_for_platoon(platoon):
-            if pc["id"] not in pc_notified:
-                send(pc["id"],
-                     f"📋 *Reminder: You have {count} {noun} from "
-                     f"{esc(platoon)} pending your review\\.* "
-                     f"Use /pending to see them\\.")
-                pc_notified.add(pc["id"])
+        pcs = db.get_pcs_for_platoon(platoon)
+        if pcs:
+            pc_app_total += count
+            for pc in pcs:
+                if pc["id"] not in pc_notified:
+                    send(pc["id"],
+                         f"📋 *Reminder: You have {count} {noun} from "
+                         f"{esc(platoon)} pending your review\\.* "
+                         f"Use /pending to see them\\.")
+                    pc_notified.add(pc["id"])
+        else:
+            fallback_app_total += count
+            for oc in db.get_ocs_for_platoon(platoon):
+                if oc["id"] not in fallback_oc_notified:
+                    send(oc["id"],
+                         f"📋 *Reminder: You have {count} {noun} from "
+                         f"{esc(platoon)} pending your review \\(acting as PC\\)\\.* "
+                         f"Use /pending to see them\\.")
+                    fallback_oc_notified.add(oc["id"])
 
     # --- OC reminders ---
     # pending_oc apps + HQ pending_pc apps; pending_co is excluded because
@@ -270,7 +302,7 @@ def _remind(chat_id: str, user: dict, args: list[str]) -> None:
                 oc_notified.add(oc["id"])
 
     # --- Summary to caller ---
-    if not applicant_count and not pc_notified and not oc_notified:
+    if not applicant_count and not pc_notified and not fallback_oc_notified and not oc_notified:
         send(chat_id, "✅ No reminders to send — no pending actions found\\.")
         return
 
@@ -282,10 +314,13 @@ def _remind(chat_id: str, user: dict, args: list[str]) -> None:
         noun = "soldier" if applicant_count == 1 else "soldiers"
         lines.append(f"• {applicant_count} {noun} \\({esc(breakdown)}\\)")
     if pc_notified:
-        total = sum(platoon_counts.values())
         noun_pc = "PC" if len(pc_notified) == 1 else "PCs"
-        noun_app = "application" if total == 1 else "applications"
-        lines.append(f"• {len(pc_notified)} {noun_pc} \\({total} {noun_app} pending\\)")
+        noun_app = "application" if pc_app_total == 1 else "applications"
+        lines.append(f"• {len(pc_notified)} {noun_pc} \\({pc_app_total} {noun_app} pending\\)")
+    if fallback_oc_notified:
+        noun_oc = "OC" if len(fallback_oc_notified) == 1 else "OCs"
+        noun_app = "application" if fallback_app_total == 1 else "applications"
+        lines.append(f"• {len(fallback_oc_notified)} {noun_oc} acting as PC \\({fallback_app_total} {noun_app} pending\\)")
     if oc_notified:
         noun_oc = "OC" if len(oc_notified) == 1 else "OCs"
         noun_app = "application" if oc_app_count == 1 else "applications"
@@ -335,7 +370,7 @@ def _list_all(chat_id: str, user: dict, args: list[str]) -> None:
 def _pending(chat_id: str, user: dict, args: list[str]) -> None:
     role = user["role"]
     if role in ("oc", "admin"):
-        apps = db.get_pending_for_oc()
+        apps = db.get_pending_for_oc(user.get("platoon"))
     else:
         apps = db.get_pending_for_pc(user.get("platoon") or "")
 
@@ -435,14 +470,13 @@ def _view(chat_id: str, user: dict, args: list[str]) -> None:
 
     # Show available actions
     role = user["role"]
-    is_hq = _is_hq_app(app)
     status = app["status"]
 
     can_review = False
     if role == "pc" and status == "pending_pc":
         can_review = True
     elif role in ("oc", "admin"):
-        if status == "pending_oc" or (status == "pending_pc" and is_hq):
+        if status == "pending_oc" or _oc_acts_as_pc(user, app):
             can_review = True
 
     if can_review:
@@ -494,7 +528,6 @@ def _approve(chat_id: str, user: dict, args: list[str]) -> None:
         return
 
     role = user["role"]
-    is_hq = _is_hq_app(app)
     status = app["status"]
 
     # Validate approvable state
@@ -502,7 +535,7 @@ def _approve(chat_id: str, user: dict, args: list[str]) -> None:
         send(chat_id, f"Application \\#{app['id']} is not awaiting PC approval\\.")
         return
     elif role in ("oc", "admin"):
-        if not (status == "pending_oc" or (status == "pending_pc" and is_hq)):
+        if not (status == "pending_oc" or _oc_acts_as_pc(user, app)):
             send(chat_id, f"Application \\#{app['id']} is not in an approvable state \\(status: {_status_display(status)}\\)\\.")
             return
 
@@ -534,13 +567,12 @@ def _reject(chat_id: str, user: dict, args: list[str]) -> None:
 
     status = app["status"]
     role = user["role"]
-    is_hq = _is_hq_app(app)
 
     if role == "pc" and status != "pending_pc":
         send(chat_id, f"Application \\#{app['id']} is not awaiting PC approval\\.")
         return
     elif role in ("oc", "admin"):
-        if not (status == "pending_oc" or (status == "pending_pc" and is_hq)):
+        if not (status == "pending_oc" or _oc_acts_as_pc(user, app)):
             send(chat_id, f"Application \\#{app['id']} is not in a rejectable state\\.")
             return
 
@@ -566,13 +598,12 @@ def _revise(chat_id: str, user: dict, args: list[str]) -> None:
 
     status = app["status"]
     role = user["role"]
-    is_hq = _is_hq_app(app)
 
     if role == "pc" and status != "pending_pc":
         send(chat_id, f"Application \\#{app['id']} is not awaiting PC approval\\.")
         return
     elif role in ("oc", "admin"):
-        if not (status == "pending_oc" or (status == "pending_pc" and is_hq)):
+        if not (status == "pending_oc" or _oc_acts_as_pc(user, app)):
             send(chat_id, f"Application \\#{app['id']} is not in a revisable state\\.")
             return
 
@@ -626,6 +657,7 @@ def _execute_approve(chat_id: str, user: dict, app: dict, text: str) -> None:
 
     role = user["role"]
     is_hq = _is_hq_app(app)
+    acts_as_pc = _oc_acts_as_pc(user, app)
 
     if role == "pc":
         db.update_application(app["id"], status="pending_oc", reviewed_by=chat_id)
@@ -641,11 +673,12 @@ def _execute_approve(chat_id: str, user: dict, app: dict, text: str) -> None:
         send(chat_id, f"✅ Application \\#{app['id']} forwarded to OC\\.\nUse /pending to review next application\\.")
 
     elif role in ("oc", "admin"):
-        if is_hq and app["status"] == "pending_pc":
-            db.update_application(app["id"], status="oc_approved", reviewed_by=chat_id)
+        db.update_application(app["id"], status="oc_approved", reviewed_by=chat_id)
+        if acts_as_pc and is_hq:
             db.log_action(app["id"], chat_id, "oc_approved_hq_direct", comment)
+        elif acts_as_pc:
+            db.log_action(app["id"], chat_id, "oc_approved_pc_fallback", comment)
         else:
-            db.update_application(app["id"], status="oc_approved", reviewed_by=chat_id)
             db.log_action(app["id"], chat_id, "oc_approved", comment)
 
         notify(app["applicant_id"],
@@ -660,8 +693,13 @@ def _execute_approve(chat_id: str, user: dict, app: dict, text: str) -> None:
                     f"{esc(app.get('applicant_name') or '?')} \\({esc(app.get('applicant_platoon') or '?')}\\)"
                     + (f"\nComment: {esc(comment)}" if comment else ""))
 
-        hq_note = " \\(HQ direct\\)" if is_hq else ""
-        send(chat_id, f"✅ Application \\#{app['id']} approved{hq_note}\\. Applicant notified to apply on OneNS\\.\nUse /pending to review next application\\.")
+        if acts_as_pc and is_hq:
+            note = " \\(HQ direct\\)"
+        elif acts_as_pc:
+            note = " \\(acting as PC\\)"
+        else:
+            note = ""
+        send(chat_id, f"✅ Application \\#{app['id']} approved{note}\\. Applicant notified to apply on OneNS\\.\nUse /pending to review next application\\.")
 
 
 def _execute_reject(chat_id: str, user: dict, app: dict, text: str) -> None:

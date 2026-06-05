@@ -97,6 +97,8 @@ platoons:
 
 The special platoon name `HQ` is reserved — HQ soldiers' applications skip the PC queue and go directly to the OC. All other platoon names are free-form.
 
+For any platoon, if no PC is registered, that platoon's OC acts as a fallback PC: applications go directly to the OC, who reviews and approves them in one step (the same way HQ works). Once a PC is registered for the platoon, the normal PC → OC flow resumes.
+
 After editing, redeploy:
 
 ```bash
