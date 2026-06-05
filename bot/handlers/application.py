@@ -51,6 +51,7 @@ def get_menu(role: str, chat_id: str | None = None) -> str:
         header +
         "/apply — Apply for deferment\n"
         "/status — Check my status\n"
+        "/changeplatoon — Request a platoon change\n"
         "/help — Help"
     )
 
@@ -65,12 +66,13 @@ HELP_USER = (
     "/co\\_approved — Report CO approved\n"
     "/co\\_rejected — Report CO rejected\n"
     "/resubmit — Resubmit after revision/CO rejection\n"
+    "/changeplatoon — Request to change your platoon assignment\n"
     "/help — This message"
 )
 
 HELP_PC = (
     "*PC Commands:*\n"
-    "/pending — Applications awaiting your approval\n"
+    "/pending — Applications \\+ platoon change requests awaiting you\n"
     "/list\\_active — Active applications from your platoon\n"
     "/list\\_all — All applications from your platoon\n"
     "/view <id\\> — View an application \\(enters review context\\)\n"
@@ -91,6 +93,7 @@ HELP_OC = (
     "/reject — Reject \\(after /view\\)\n"
     "/revise — Send back for revision \\(after /view\\)\n"
     "/edit\\_decision — Edit your past decision\n"
+    "/view P<id\\> — View a platoon change request \\(then /approve or /reject\\)\n"
     "/co\\_status <id\\> approved\\|rejected — Update CO decision\n"
     "/setstatus <id\\> approved\\|rejected — Manually set outcome\n"
     "/remind — Send reminders to all users with pending actions"
