@@ -99,7 +99,7 @@ platoons:
 
 The special platoon name `HQ` is reserved — HQ soldiers' applications skip the PC queue and go directly to the OC. All other platoon names are free-form.
 
-For any platoon, if no PC is registered, that platoon's OC acts as a fallback PC: applications go directly to the OC, who reviews and approves them in one step (the same way HQ works). Once a PC is registered for the platoon, the normal PC → OC flow resumes.
+For any platoon, if no PC is registered, an OC in that platoon acts as fallback PC: applications go directly to the OC, who reviews and approves them in one step (the same way HQ works). Once a PC is registered for the platoon, the normal PC → OC flow resumes.
 
 **Deferment types & documents** — `bot/config/deferment_docs.yaml` defines the deferment types in the `/apply` menu and the documents required for each. Edit it to match what your unit accepts.
 
