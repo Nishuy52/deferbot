@@ -10,7 +10,8 @@ A Telegram bot that manages NS deferment applications end-to-end: soldiers submi
 
 | Guide | Description |
 |---|---|
-| [Installation Guide](doc/installation.md) | Step-by-step setup from scratch |
+| [Installation Guide](doc/installation.md) | Step-by-step setup from scratch + local development |
+| [Configuration Guide](doc/configuration.md) | Customize platoons and deferment types/documents for your unit |
 | [User Guide](doc/user-guide.md) | Flow diagrams, state machine, notification matrix |
 | [Testing Commands](doc/testing.md) | Full test suite using admin simulation commands |
 
@@ -20,10 +21,12 @@ A Telegram bot that manages NS deferment applications end-to-end: soldiers submi
 
 1. Create a Telegram bot via @BotFather and note the token.
 2. Create a Supabase project, run `supabase/init.sql`, and create a private `documents` storage bucket.
-3. Deploy to Vercel and set `TELEGRAM_TOKEN`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`.
-4. Register the webhook: `curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=<VERCEL_URL>/webhook"`
+3. Customize `bot/config/platoons.yaml` and `bot/config/deferment_docs.yaml` for your unit (see the [Configuration Guide](doc/configuration.md)).
+4. Deploy to Vercel and set `TELEGRAM_TOKEN`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`.
+5. Register the webhook: `curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=<VERCEL_URL>/webhook"`
+6. Message your bot `/start` to register, then promote yourself to admin in Supabase (`UPDATE users SET role = 'admin' WHERE id = '<your_chat_id>';`). From there, assign PC/OC roles with `/setrole`.
 
-See [doc/installation.md](doc/installation.md) for the full walkthrough.
+See [doc/installation.md](doc/installation.md) for the full walkthrough (including running locally for development).
 
 ---
 

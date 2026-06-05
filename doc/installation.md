@@ -83,9 +83,11 @@ The webhook only needs to be registered once. It persists across redeployments.
 
 ---
 
-## Step 6 — Configure platoons
+## Step 6 — Configure for your unit
 
-Edit `bot/config/platoons.yaml` to list your unit's platoons:
+Two YAML config files tailor the bot to your unit. Edit both, then redeploy.
+
+**Platoons** — `bot/config/platoons.yaml` lists your unit's platoons (the menu soldiers pick from when registering):
 
 ```yaml
 platoons:
@@ -98,6 +100,10 @@ platoons:
 The special platoon name `HQ` is reserved — HQ soldiers' applications skip the PC queue and go directly to the OC. All other platoon names are free-form.
 
 For any platoon, if no PC is registered, that platoon's OC acts as a fallback PC: applications go directly to the OC, who reviews and approves them in one step (the same way HQ works). Once a PC is registered for the platoon, the normal PC → OC flow resumes.
+
+**Deferment types & documents** — `bot/config/deferment_docs.yaml` defines the deferment types in the `/apply` menu and the documents required for each. Edit it to match what your unit accepts.
+
+See the **[Configuration Guide](configuration.md)** for the full YAML structure, how to add a deferment type, and what is/isn't configurable.
 
 After editing, redeploy:
 
@@ -141,6 +147,56 @@ vercel --prod
 ```
 
 No need to re-register the webhook after redeployment.
+
+---
+
+## Running locally for development
+
+You can run the bot on your own machine to test changes before deploying. It
+still needs a real Telegram bot and Supabase project (Steps 1–2).
+
+1. **Install dependencies** (a virtual environment is recommended):
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Create your `.env`** — copy the template and fill in your values:
+
+   ```bash
+   cp .env.example .env          # macOS / Linux
+   # Copy-Item .env.example .env  # Windows PowerShell
+   ```
+
+   The app loads `.env` automatically on startup. `.env` is gitignored — never
+   commit it.
+
+3. **Run the dev server:**
+
+   ```bash
+   flask --app api.index run
+   ```
+
+   This serves on `http://127.0.0.1:5000`. The health check at
+   `GET /webhook` should return `NS Deferment Bot is running.`
+
+4. **Receive Telegram updates locally.** Telegram needs a public HTTPS URL to
+   deliver webhooks, so expose your local server with a tunnel (e.g.
+   [ngrok](https://ngrok.com)):
+
+   ```bash
+   ngrok http 5000
+   ```
+
+   Point the webhook at the tunnel URL (use a **separate test bot** so you don't
+   disrupt the production webhook):
+
+   ```bash
+   curl "https://api.telegram.org/bot<TEST_TOKEN>/setWebhook?url=<NGROK_URL>/webhook"
+   ```
+
+   When you're done, re-point the production webhook back at your Vercel URL
+   (Step 5) if you reused the same bot.
 
 ---
 
