@@ -38,8 +38,7 @@ Notes:
   [`bot/db.py`](../bot/db.py) if you ever need to rename it.)
 - **PC-less platoons fall back to the OC automatically.** For any non-HQ platoon
   with no registered PC, that platoon's OC acts as the PC until you register one
-  — no config needed. See the "PC-less platoon fallback" section in
-  [CLAUDE.md](../CLAUDE.md) / the [User Guide](user-guide.md).
+  — no config needed. See the [User Guide](user-guide.md) for the full flow.
 
 The order in the file is the order shown in the menu, and a soldier registers by
 replying with the number.
