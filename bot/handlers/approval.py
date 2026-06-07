@@ -189,8 +189,26 @@ def _format_app_list_by_platoon(apps: list[dict], user: dict) -> str:
 
 # ── Summary Command ───────────────────────────────────────────────────────
 
+# Pipeline order used to sort the verbose roster
+_STATUS_LABEL: dict[str, str] = {
+    "draft":               "Draft",
+    "pending_ippt":        "Awaiting IPPT",
+    "pending_pc":          "Pending PC",
+    "revision_requested":  "Revision Requested",
+    "pending_oc":          "Pending OC",
+    "oc_approved":         "OC Approved",
+    "pending_co":          "Pending CO",
+    "co_rejected":         "CO Rejected",
+    "approved":            "Approved",
+    "rejected":            "Rejected",
+}
+_STATUS_ORDER = list(_STATUS_LABEL.keys())
+
+
 def _summary(chat_id: str, user: dict, args: list[str]) -> None:
-    """Per-platoon breakdown of pending and approved application counts."""
+    """Per-platoon breakdown of pending and approved application counts.
+    Pass -v for a verbose roster of each soldier and their current stage."""
+    verbose = "-v" in args
     role = user["role"]
     if role == "pc":
         apps = db.get_all_for_pc(user.get("platoon") or "")
@@ -214,12 +232,8 @@ def _summary(chat_id: str, user: dict, args: list[str]) -> None:
             s = a["status"]
             counts[s] = counts.get(s, 0) + 1
 
-        drafts = counts.get("draft", 0) + counts.get("draft_confirm", 0)
-        awaiting_ippt = counts.get("pending_ippt", 0)
         pending_pc = counts.get("pending_pc", 0)
         pending_oc = counts.get("pending_oc", 0)
-        oc_approved = counts.get("oc_approved", 0)
-        revision_requested = counts.get("revision_requested", 0)
         pending_co = counts.get("pending_co", 0)
         all_pending = sum(counts.get(s, 0) for s in counts if s != "approved" and s != "rejected")
         all_approved = counts.get("approved", 0)
@@ -227,17 +241,25 @@ def _summary(chat_id: str, user: dict, args: list[str]) -> None:
 
         lines = [
             f"*── {esc(plt)} ──*",
-            f"Drafts: {drafts}",
-            f"Awaiting IPPT: {awaiting_ippt}",
             f"Pending PC: {pending_pc}",
             f"Pending OC: {pending_oc}",
-            f"OC Approved: {oc_approved}",
-            f"revision_requested: {revision_requested}",
             f"Pending CO: {pending_co}",
             f"All pending: {all_pending}",
             f"All approved: {all_approved}",
             f"All pending \\+ approved: {total}",
         ]
+
+        if verbose:
+            sorted_apps = sorted(
+                plt_apps,
+                key=lambda a: _STATUS_ORDER.index(a["status"]) if a["status"] in _STATUS_ORDER else 999,
+            )
+            lines.append("\n_Roster:_")
+            for a in sorted_apps:
+                label = _STATUS_LABEL.get(a["status"], a["status"])
+                name = esc(a.get("applicant_name") or "Unknown")
+                lines.append(f"  • {name} — _{esc(label)}_")
+
         sections.append("\n".join(lines))
 
     send(chat_id, "📊 *Application Summary*\n\n" + "\n\n".join(sections))
