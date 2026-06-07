@@ -230,6 +230,7 @@ def _summary(chat_id: str, user: dict, args: list[str]) -> None:
             f"Awaiting IPPT: {awaiting_ippt}",
             f"Pending PC: {pending_pc}",
             f"Pending OC: {pending_oc}",
+            f"OC Approved: {oc_approved}",
             f"Pending CO: {pending_co}",
             f"All pending: {all_pending}",
             f"All approved: {all_approved}",
