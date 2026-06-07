@@ -248,16 +248,19 @@ def _summary(chat_id: str, user: dict, args: list[str]) -> None:
             f"*Total pending \\+ approved: {total}*",
             f"*Total approved: {all_approved}*",
             f"*Total pending: {all_pending}*",
-            f"Drafts: {drafts}",
-            f"Awaiting IPPT: {awaiting_ippt}",
-            f"Pending PC: {pending_pc}",
-            f"Revision Requested: {revision_requested}",
-            f"Pending OC: {pending_oc}",
-            f"OC Approved: {oc_approved}",
-            f"Pending CO: {pending_co}",
         ]
 
-        if verbose:
+        if not verbose:
+            lines += [
+                f"Drafts: {drafts}",
+                f"Awaiting IPPT: {awaiting_ippt}",
+                f"Pending PC: {pending_pc}",
+                f"Revision Requested: {revision_requested}",
+                f"Pending OC: {pending_oc}",
+                f"OC Approved: {oc_approved}",
+                f"Pending CO: {pending_co}",
+            ]
+        else:
             sorted_apps = sorted(
                 (a for a in plt_apps if a["status"] != "rejected"),
                 key=lambda a: _STATUS_ORDER.index(a["status"]) if a["status"] in _STATUS_ORDER else 999,
