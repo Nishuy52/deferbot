@@ -214,6 +214,8 @@ def _summary(chat_id: str, user: dict, args: list[str]) -> None:
             s = a["status"]
             counts[s] = counts.get(s, 0) + 1
 
+        drafts = counts.get("draft", 0) + counts.get("draft_confirm", 0)
+        awaiting_ippt = counts.get("pending_ippt", 0)
         pending_pc = counts.get("pending_pc", 0)
         pending_oc = counts.get("pending_oc", 0)
         pending_co = counts.get("pending_co", 0)
@@ -223,6 +225,8 @@ def _summary(chat_id: str, user: dict, args: list[str]) -> None:
 
         lines = [
             f"*── {esc(plt)} ──*",
+            f"Drafts: {drafts}",
+            f"Awaiting IPPT: {awaiting_ippt}",
             f"Pending PC: {pending_pc}",
             f"Pending OC: {pending_oc}",
             f"Pending CO: {pending_co}",
