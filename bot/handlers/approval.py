@@ -245,8 +245,8 @@ def _summary(chat_id: str, user: dict, args: list[str]) -> None:
 
         lines = [
             f"*── {esc(plt)} ──*",
-            f"*All pending \\+ approved: {total}*",
-            f"*All approved: {all_approved}*",
+            f"*Total pending \\+ approved: {total}*",
+            f"*Total approved: {all_approved}*",
             f"*Total pending: {all_pending}*",
             f"Drafts: {drafts}",
             f"Awaiting IPPT: {awaiting_ippt}",
