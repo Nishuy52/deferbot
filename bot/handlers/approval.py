@@ -41,6 +41,7 @@ def handle(chat_id: str, user: dict, cmd: str, args: list[str]) -> bool:
         "/co_status": _co_status,
         "/edit_decision": _edit_decision,
         "/remind": _remind,
+        "/summary": _summary,
     }
     fn = dispatch.get(cmd)
     if fn:
@@ -186,9 +187,59 @@ def _format_app_list_by_platoon(apps: list[dict], user: dict) -> str:
     return "\n\n".join(sections)
 
 
+# ── Summary Command ───────────────────────────────────────────────────────
+
+def _summary(chat_id: str, user: dict, args: list[str]) -> None:
+    """Per-platoon breakdown of pending and approved application counts."""
+    role = user["role"]
+    if role == "pc":
+        apps = db.get_all_for_pc(user.get("platoon") or "")
+    else:
+        apps = db.get_all_applications()
+
+    if not apps:
+        send(chat_id, "No applications found\\.")
+        return
+
+    grouped: dict[str, list] = {}
+    for a in apps:
+        plt = a.get("applicant_platoon") or "Unknown"
+        grouped.setdefault(plt, []).append(a)
+
+    sections = []
+    for plt in sorted(grouped.keys()):
+        plt_apps = grouped[plt]
+        counts: dict[str, int] = {}
+        for a in plt_apps:
+            s = a["status"]
+            counts[s] = counts.get(s, 0) + 1
+
+        pending_pc = counts.get("pending_pc", 0)
+        pending_oc = counts.get("pending_oc", 0)
+        pending_co = counts.get("pending_co", 0)
+        all_pending = sum(counts.get(s, 0) for s in counts if s != "approved" and s != "rejected")
+        all_approved = counts.get("approved", 0)
+        total = all_pending + all_approved
+
+        lines = [
+            f"*── {esc(plt)} ──*",
+            f"Pending PC: {pending_pc}",
+            f"Pending OC: {pending_oc}",
+            f"Pending CO: {pending_co}",
+            f"All pending: {all_pending}",
+            f"All approved: {all_approved}",
+            f"All pending \\+ approved: {total}",
+        ]
+        sections.append("\n".join(lines))
+
+    send(chat_id, "📊 *Application Summary*\n\n" + "\n\n".join(sections))
+
+
 # ── Remind Command ────────────────────────────────────────────────────────
 
-_USER_ACTION_STATUSES = {"draft", "draft_confirm", "pending_ippt", "revision_requested", "oc_approved", "co_rejected"}
+_USER_ACTION_STATUSES = {"draft", "draft_confirm", "pending_ippt", "revision_requested", "oc_approved", "co_rejected", "pending_co"}
+# pending_co soldiers have already submitted on OneNS — withdraw is not meaningful for them
+_NO_WITHDRAW_STATUSES = {"pending_co"}
 
 _REMIND_MSGS = {
     "draft": (
@@ -213,6 +264,10 @@ _REMIND_MSGS = {
     "co_rejected": (
         "❌ *Reminder: Your CO has rejected your deferment application\\.* "
         "Use /resubmit to submit an updated application\\."
+    ),
+    "pending_co": (
+        "🏛️ *Reminder: Your application is pending your CO's decision\\.* "
+        "Check OneNS for the outcome, then use /co\\_approved or /co\\_rejected to report it\\."
     ),
 }
 _WITHDRAW_NOTE = "\n\n_If you are no longer applying, use /withdraw to cancel\\._"
@@ -242,7 +297,8 @@ def _remind(chat_id: str, user: dict, args: list[str]) -> None:
         )
         if remind_key not in _USER_ACTION_STATUSES:
             continue
-        send(app["applicant_id"], _REMIND_MSGS[remind_key] + _WITHDRAW_NOTE)
+        trailer = "" if remind_key in _NO_WITHDRAW_STATUSES else _WITHDRAW_NOTE
+        send(app["applicant_id"], _REMIND_MSGS[remind_key] + trailer)
         applicant_count += 1
         status_counts[remind_key] = status_counts.get(remind_key, 0) + 1
 
